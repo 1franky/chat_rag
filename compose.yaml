@@ -53,6 +53,7 @@ services:
     deploy:
       resources:
         limits: { cpus: "1.0", memory: 512M }
+    env_file: .env
     environment:
       QDRANT_URL: http://chat-qdrant:6333
       QDRANT_COLLECTION: rag_documents
@@ -83,6 +84,7 @@ services:
     deploy:
       resources:
         limits: { cpus: "2.0", memory: 2G }
+    env_file: .env
     environment:
       DJANGO_SETTINGS_MODULE: config.settings
       DATABASE_URL: sqlite:////data/sqlite/db.sqlite3
@@ -122,6 +124,7 @@ services:
     deploy:
       resources:
         limits: { cpus: "1.5", memory: 512M }
+    env_file: .env
     environment:
       DJANGO_SETTINGS_MODULE: config.settings
       DATABASE_URL: sqlite:////data/sqlite/db.sqlite3
