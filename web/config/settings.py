@@ -121,16 +121,19 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-# Cookies de sesión seguras (plan.md, sección 2.3). Secure funciona sobre
-# http://localhost y http://127.0.0.1 porque los navegadores los tratan como
-# "contextos seguros" aunque no haya TLS. Con DJANGO_DEBUG=1 se relaja para
-# facilitar el desarrollo local fuera de localhost.
+# Cookies de sesión (plan.md, sección 2.3). COOKIE_SECURE por defecto en 0:
+# v1 se sirve por HTTP plano (sin TLS por delante, CSRF_TRUSTED_ORIGINS usa
+# http:// no https://) y en la práctica los navegadores NO tratan
+# http://localhost como "contexto seguro" a los efectos de la flag Secure de
+# cookies (se probó y falla con 403 CSRF real) — Secure=True simplemente
+# deja el cookie sin mandar. Si en algún momento se pone un reverse proxy
+# con TLS delante, poner COOKIE_SECURE=1 en .env.
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Strict"
-SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "0") == "1"
 CSRF_COOKIE_HTTPONLY = True
 CSRF_COOKIE_SAMESITE = "Strict"
-CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "0") == "1"
 
 
 # --- Internacionalización -----------------------------------------------
