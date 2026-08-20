@@ -52,7 +52,13 @@ services:
     restart: unless-stopped
     deploy:
       resources:
-        limits: { cpus: "1.0", memory: 512M }
+        # 512M (el original de la Fase 2) alcanzaba para el healthcheck y
+        # las tools stub, pero nunca se probó bajo este límite con
+        # rag_search haciendo una embedding de verdad (Fase 3 lo probó en
+        # contenedores sueltos, sin límite de memoria) — cargar el modelo
+        # en memoria por primera vez lo hacía reiniciar en cada llamada
+        # real desde la Fase 4.
+        limits: { cpus: "1.0", memory: 1.5G }
     env_file: .env
     environment:
       QDRANT_URL: http://chat-qdrant:6333
@@ -130,10 +136,30 @@ services:
       target: web
     image: chat-web:0.1.0
     restart: unless-stopped
-    command: daphne -b 0.0.0.0 -p 8000 config.asgi:application
+    # uvicorn, no daphne — ver la nota en web/pyproject.toml. --loop asyncio
+    # (no uvloop, aunque uvicorn[standard] lo trae e "auto" lo elegiría):
+    # uvloop envuelve libuv, que tiene su propio manejo de señales/reaping
+    # de procesos hijos — mismo tipo de conflicto que Twisted con el
+    # subproceso `claude` del Agent SDK.
+    command: uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --loop asyncio
+    # El Agent SDK (chat/agent.py) corre con permission_mode=bypassPermissions
+    # (--dangerously-skip-permissions) porque es uso 100% personal, sin UI de
+    # aprobación de tools — pero el CLI de Claude Code se niega a arrancar con
+    # esa flag si el proceso es root ("cannot be used with root/sudo
+    # privileges for security reasons"). Corre con el uid:gid del host dueño
+    # de ./data/* (APP_UID/APP_GID en .env — correr `id -u`/`id -g` en el
+    # host para saber cuáles poner) — de paso ya no hace falta
+    # CAP_DAC_OVERRIDE acá, como sí en chat-worker.
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
     deploy:
       resources:
-        limits: { cpus: "1.5", memory: 512M }
+        # 512M (el original de la Fase 0) no alcanza: el binario `claude`
+        # del Agent SDK (compilado con Bun) sólo para arrancar ya pica
+        # ~0.6 GB de pico — con Django corriendo al lado, la primera
+        # respuesta se comía toda la memoria y el proceso abortaba
+        # ("cannot allocate memory", ni un crash claro). Se probó y
+        # confirmó soltando el límite del todo antes de subirlo acá.
+        limits: { cpus: "1.5", memory: 2G }
     env_file: .env
     environment:
       DJANGO_SETTINGS_MODULE: config.settings
@@ -142,6 +168,12 @@ services:
       DATA_PLATFORM_MCP_URL: http://data-platform-mcp:8000/mcp
       RAG_MCP_URL: http://chat-rag-mcp:8100/mcp
       MEDIA_ROOT: /data/media
+      # El Agent SDK necesita un CLAUDE_CONFIG_DIR escribible (guarda ahí el
+      # transcript de cada sesión, para poder resumir la conversación en el
+      # siguiente mensaje) — no puede ser el mount de ~/.claude de abajo,
+      # que es de solo lectura a propósito. entrypoint.sh siembra este
+      # directorio con las credenciales en cada arranque (ver ese archivo).
+      CLAUDE_CONFIG_DIR: /data/claude-config
       # ALLOWED_HOSTS y CSRF_TRUSTED_ORIGINS NO se hardcodean acá a propósito:
       # dependen de cómo accedés (localhost, túnel, dominio propio), así que
       # se toman de .env (env_file más arriba). Ver .env.example.
@@ -149,7 +181,13 @@ services:
     volumes:
       - ./data/sqlite:/data/sqlite
       - ./data/media:/data/media
-      - ${HOME}/.claude:/root/.claude:ro  # credencial de Claude Code
+      - ./data/claude-config:/data/claude-config
+      # Credenciales de Claude Code (suscripción Pro) — de solo lectura a
+      # propósito, entrypoint.sh las copia a CLAUDE_CONFIG_DIR arriba. En
+      # /creds y no /root: el contenedor corre como usuario sin privilegios
+      # (ver `user:` arriba) y /root es 0700 — no podría ni entrar ahí.
+      - ${HOME}/.claude:/creds/claude-readonly:ro
+      - ${HOME}/.claude.json:/creds/claude-readonly.json:ro
     ports:
       - "127.0.0.1:3004:8000"
     depends_on:
@@ -160,7 +198,9 @@ services:
     tmpfs: [/tmp:size=64m]
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
-    cap_add: [DAC_OVERRIDE]  # ver el comentario en chat-worker
+    # Sin cap_add: [DAC_OVERRIDE] a propósito — a diferencia de chat-worker,
+    # corre con `user:` (arriba) matcheando el dueño real de ./data/*, así
+    # que no hace falta que root se salte los permisos de archivo.
     healthcheck:
       test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]
       interval: 30s

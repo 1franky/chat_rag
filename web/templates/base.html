@@ -14,6 +14,7 @@
   <script src="{% static 'js/vendor/alpine.min.js' %}" defer></script>
   <script src="{% static 'js/vendor/htmx.min.js' %}" defer></script>
   <script src="{% static 'js/csrf.js' %}" defer></script>
+  {% block extra_head %}{% endblock %}
 </head>
 <body class="h-full bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
   <div class="flex h-full" x-data="{ sidebarOpen: true }">
@@ -22,20 +23,42 @@
       :class="sidebarOpen ? 'w-64' : 'w-0'"
     >
       <div class="p-4 font-semibold whitespace-nowrap">chat_rag</div>
-      <nav class="flex-1 space-y-1 overflow-y-auto px-2">
-        <a
-          href="{% url 'chat:placeholder' %}"
-          class="block whitespace-nowrap rounded px-3 py-2 text-sm hover:bg-slate-200 dark:hover:bg-slate-800"
-        >
-          Chat
-        </a>
+
+      <div class="px-2">
+        <form method="post" action="{% url 'chat:new' %}">
+          {% csrf_token %}
+          <button
+            type="submit"
+            class="mb-2 flex w-full items-center gap-2 whitespace-nowrap rounded px-3 py-2 text-sm hover:bg-slate-200 dark:hover:bg-slate-800"
+          >
+            <span>+</span> Nueva conversación
+          </button>
+        </form>
         <a
           href="{% url 'ingesta:list' %}"
           class="block whitespace-nowrap rounded px-3 py-2 text-sm hover:bg-slate-200 dark:hover:bg-slate-800"
         >
           Documentos
         </a>
+      </div>
+
+      <nav class="mt-2 flex-1 space-y-3 overflow-y-auto px-2 pb-2">
+        {% for group_label, conversations in sidebar_conversations.items %}
+          <div>
+            <p class="px-3 pb-1 text-xs font-medium text-slate-400 dark:text-slate-500">{{ group_label }}</p>
+            {% for conv in conversations %}
+              <a
+                href="{% url 'chat:detail' conv.id %}"
+                class="block truncate rounded px-3 py-2 text-sm hover:bg-slate-200 dark:hover:bg-slate-800 {% if conv.id == conversation.id %}bg-slate-200 dark:bg-slate-800{% endif %}"
+                title="{{ conv.title }}"
+              >
+                {{ conv.title|default:"Sin título" }}
+              </a>
+            {% endfor %}
+          </div>
+        {% endfor %}
       </nav>
+
       <div class="border-t border-slate-200 p-2 dark:border-slate-800">
         {% include "partials/user_menu.html" %}
       </div>
@@ -53,7 +76,7 @@
         </button>
         {% include "partials/theme_toggle.html" %}
       </header>
-      <main class="flex-1 overflow-y-auto p-6">
+      <main class="flex min-h-0 flex-1 flex-col overflow-y-auto {% block main_padding %}p-6{% endblock %}">
         {% block content %}{% endblock %}
       </main>
     </div>

@@ -1,0 +1,190 @@
+// Chat: streaming SSE-sobre-fetch (no se puede usar EventSource nativo
+// porque necesitamos mandar un POST con body — EventSource solo hace GET),
+// render de markdown post-stream con marked.js + highlight.js.
+
+function chatPage(conversationId) {
+  return {
+    draft: '',
+    sending: false,
+    errorMessage: '',
+
+    init() {
+      this.renderExistingMarkdown();
+      this.scrollToBottom();
+      this.$nextTick(() => this.$refs.input?.focus());
+
+      window.addEventListener('keydown', (event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+          event.preventDefault();
+          document.querySelector('aside form[action$="/nueva/"]')?.requestSubmit();
+        }
+      });
+    },
+
+    renderExistingMarkdown() {
+      this.$refs.messageList.querySelectorAll('.markdown-body').forEach((el) => this.renderMarkdown(el));
+    },
+
+    renderMarkdown(el) {
+      const raw = el.dataset.raw ?? el.textContent;
+      el.innerHTML = marked.parse(raw);
+      el.querySelectorAll('pre code').forEach((block) => {
+        hljs.highlightElement(block);
+        this.addCopyButton(block);
+      });
+    },
+
+    addCopyButton(codeBlock) {
+      const pre = codeBlock.parentElement;
+      if (!pre || pre.querySelector('.copy-btn')) return;
+      pre.classList.add('relative', 'group');
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = 'Copiar';
+      button.className =
+        'copy-btn absolute right-2 top-2 hidden rounded bg-slate-700 px-2 py-1 text-xs text-white group-hover:block hover:bg-slate-600';
+      button.addEventListener('click', () => {
+        navigator.clipboard.writeText(codeBlock.innerText).then(() => {
+          button.textContent = '¡Listo!';
+          setTimeout(() => (button.textContent = 'Copiar'), 1500);
+        });
+      });
+      pre.appendChild(button);
+    },
+
+    autoResize() {
+      const el = this.$refs.input;
+      el.style.height = 'auto';
+      el.style.height = `${el.scrollHeight}px`;
+    },
+
+    scrollToBottom() {
+      this.$nextTick(() => {
+        this.$refs.messageList.scrollTop = this.$refs.messageList.scrollHeight;
+      });
+    },
+
+    appendBubble(role) {
+      const wrapper = document.createElement('div');
+      wrapper.className = `mb-4 flex ${role === 'user' ? 'justify-end' : 'justify-start'}`;
+      const bubble = document.createElement('div');
+      bubble.className =
+        role === 'user'
+          ? 'max-w-2xl whitespace-pre-wrap rounded-lg bg-slate-900 px-4 py-2 text-white dark:bg-slate-100 dark:text-slate-900'
+          : 'markdown-body max-w-2xl whitespace-pre-wrap rounded-lg bg-slate-100 px-4 py-2 dark:bg-slate-800';
+      wrapper.appendChild(bubble);
+      this.$refs.messageList.appendChild(wrapper);
+      return bubble;
+    },
+
+    addToolChip(data) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'mb-4 flex justify-start';
+      wrapper.dataset.toolUseId = data.id;
+      const details = document.createElement('details');
+      details.className = 'max-w-2xl rounded border border-slate-200 px-3 py-2 text-sm dark:border-slate-800';
+      const summary = document.createElement('summary');
+      summary.className = 'cursor-pointer select-none text-slate-600 dark:text-slate-300';
+      summary.textContent = `🔧 ${data.name}`;
+      const args = document.createElement('pre');
+      args.className = 'mt-2 overflow-x-auto text-xs';
+      args.textContent = JSON.stringify(data.input, null, 2);
+      details.appendChild(summary);
+      details.appendChild(args);
+      wrapper.appendChild(details);
+      this.$refs.messageList.appendChild(wrapper);
+      this.scrollToBottom();
+    },
+
+    updateToolChip(data) {
+      const wrapper = this.$refs.messageList.querySelector(`[data-tool-use-id="${CSS.escape(data.tool_use_id)}"]`);
+      if (!wrapper) return;
+      const summary = wrapper.querySelector('summary');
+      if (data.is_error) {
+        summary.innerHTML += ' <span class="text-red-600 dark:text-red-400">· error</span>';
+      }
+    },
+
+    async send() {
+      const text = this.draft.trim();
+      if (!text || this.sending) return;
+
+      this.sending = true;
+      this.errorMessage = '';
+      this.appendBubble('user').textContent = text;
+      this.draft = '';
+      this.$nextTick(() => this.autoResize());
+      this.scrollToBottom();
+
+      const assistantBubble = this.appendBubble('assistant');
+      let assistantText = '';
+
+      try {
+        const response = await fetch(`/chat/${conversationId}/stream/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+          body: JSON.stringify({ message: text }),
+        });
+
+        if (!response.ok || !response.body) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(payload.error || `Error del servidor (HTTP ${response.status})`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const chunks = buffer.split('\n\n');
+          buffer = chunks.pop();
+          for (const chunk of chunks) {
+            if (!chunk.startsWith('data: ')) continue;
+            const data = JSON.parse(chunk.slice(6));
+            if (data.type === 'token') {
+              assistantText += data.text;
+              assistantBubble.textContent = assistantText;
+              this.scrollToBottom();
+            } else if (data.type === 'tool_use') {
+              this.addToolChip(data);
+            } else if (data.type === 'tool_result') {
+              this.updateToolChip(data);
+            } else if (data.type === 'error') {
+              this.errorMessage = data.error || 'Algo salió mal.';
+            }
+          }
+        }
+      } catch (error) {
+        this.errorMessage = error.message || 'No se pudo conectar con el servidor.';
+      }
+
+      if (assistantText) {
+        assistantBubble.dataset.raw = assistantText;
+        this.renderMarkdown(assistantBubble);
+      } else {
+        assistantBubble.parentElement.remove();
+      }
+      this.scrollToBottom();
+      this.sending = false;
+      this.$nextTick(() => this.$refs.input?.focus());
+
+      // El título se autogenera en el server con el primer mensaje
+      // (Conversation.set_title_from_message, trunca a 60 caracteres) — se
+      // refleja acá al toque para no esperar a la próxima navegación.
+      this.updateSidebarTitle(text);
+    },
+
+    updateSidebarTitle(firstMessage) {
+      const link = document.querySelector(`aside a[href$="/${conversationId}/"]`);
+      if (!link || link.textContent.trim() !== 'Sin título') return;
+      const collapsed = firstMessage.split(/\s+/).join(' ');
+      const title = collapsed.length > 60 ? `${collapsed.slice(0, 60)}…` : collapsed;
+      link.textContent = title;
+      link.title = title;
+      document.title = `${title} · chat_rag`;
+    },
+  };
+}

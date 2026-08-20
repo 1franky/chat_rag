@@ -10,4 +10,4 @@ def healthz(request: HttpRequest) -> HttpResponse:
 def root(request: HttpRequest) -> HttpResponse:
     """`/`: redirige a `/chat/` (LoginRequiredMiddleware ya se encarga de
     mandar a `/login/` si no hay sesión iniciada)."""
-    return redirect("chat:placeholder")
+    return redirect("chat:home")

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Chat · chat_rag{% endblock %}
+
+{% block content %}
+<div class="flex h-full flex-col items-center justify-center text-center">
+  <h1 class="mb-2 text-2xl font-semibold">¡Hola, {{ request.user.username }}!</h1>
+  <p class="mb-6 max-w-md text-slate-500 dark:text-slate-400">
+    Todavía no tenés conversaciones. Arrancá una — Claude tiene acceso a los
+    documentos que subiste y a las tools de datos conectadas.
+  </p>
+  <form method="post" action="{% url 'chat:new' %}">
+    {% csrf_token %}
+    <button
+      type="submit"
+      class="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:opacity-90 dark:bg-slate-100 dark:text-slate-900"
+    >
+      Nueva conversación
+    </button>
+  </form>
+</div>
+{% endblock %}
