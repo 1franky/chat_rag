@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ conversation.title|default:"Nueva conversación" }} · chat_rag{% endblock %}
+
+{% block main_padding %}{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/vendor/highlight-github-dark.min.css' %}">
+{% endblock %}
+
+{% block content %}
+<div
+  class="flex h-full flex-col"
+  x-data="chatPage('{{ conversation.id }}')"
+  x-init="init()"
+  data-conversation-id="{{ conversation.id }}"
+>
+  <div class="flex items-center justify-between border-b border-slate-200 px-4 py-2 dark:border-slate-800">
+    <h1 class="truncate text-sm font-medium">{{ conversation.title|default:"Nueva conversación" }}</h1>
+    <div class="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+      <a href="{% url 'chat:export' conversation.id %}" class="hover:text-slate-900 dark:hover:text-slate-100">
+        Exportar
+      </a>
+      <form
+        method="post"
+        action="{% url 'chat:delete' conversation.id %}"
+        onsubmit="return confirm('¿Borrar esta conversación?');"
+      >
+        {% csrf_token %}
+        <button type="submit" class="hover:text-red-600 dark:hover:text-red-400">Borrar</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="message-list" class="flex-1 overflow-y-auto px-4 py-6" x-ref="messageList">
+    {% for message in chat_messages %}
+      {% include "chat/_message.html" %}
+    {% empty %}
+      <div class="flex h-full items-center justify-center text-sm text-slate-400">
+        Escribí algo para arrancar.
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="border-t border-slate-200 p-4 dark:border-slate-800">
+    <div x-show="errorMessage" x-cloak class="mb-2 rounded bg-red-100 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+      <span x-text="errorMessage"></span>
+    </div>
+    <form @submit.prevent="send()" class="flex items-end gap-2">
+      <textarea
+        x-ref="input"
+        x-model="draft"
+        @keydown.enter.prevent="if (!$event.shiftKey) send()"
+        @input="autoResize()"
+        :disabled="sending"
+        rows="1"
+        placeholder="Escribí un mensaje… (Enter para enviar, Shift+Enter para nueva línea)"
+        class="max-h-40 flex-1 resize-none rounded border border-slate-300 bg-transparent px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 dark:border-slate-700 dark:focus:ring-slate-600"
+      ></textarea>
+      <button
+        type="submit"
+        :disabled="sending || !draft.trim()"
+        class="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900"
+      >
+        <span x-show="!sending">Enviar</span>
+        <span x-show="sending" x-cloak>…</span>
+      </button>
+    </form>
+  </div>
+</div>
+
+<script src="{% static 'js/vendor/marked.min.js' %}"></script>
+<script src="{% static 'js/vendor/highlight/highlight.min.js' %}"></script>
+<script src="{% static 'js/vendor/highlight/languages/python.min.js' %}"></script>
+<script src="{% static 'js/vendor/highlight/languages/javascript.min.js' %}"></script>
+<script src="{% static 'js/vendor/highlight/languages/typescript.min.js' %}"></script>
+<script src="{% static 'js/vendor/highlight/languages/bash.min.js' %}"></script>
+<script src="{% static 'js/vendor/highlight/languages/json.min.js' %}"></script>
+<script src="{% static 'js/vendor/highlight/languages/yaml.min.js' %}"></script>
+<script src="{% static 'js/vendor/highlight/languages/sql.min.js' %}"></script>
+<script src="{% static 'js/vendor/highlight/languages/xml.min.js' %}"></script>
+<script src="{% static 'js/vendor/highlight/languages/css.min.js' %}"></script>
+<script src="{% static 'js/vendor/highlight/languages/markdown.min.js' %}"></script>
+<script src="{% static 'js/vendor/highlight/languages/dockerfile.min.js' %}"></script>
+<script src="{% static 'js/vendor/highlight/languages/django.min.js' %}"></script>
+<script src="{% static 'js/vendor/highlight/languages/plaintext.min.js' %}"></script>
+<script src="{% static 'js/chat.js' %}"></script>
+{% endblock %}
