@@ -3,3 +3,9 @@
 /* Dark mode controlado por la clase `.dark` en <html> (toggle de Alpine),
    no por prefers-color-scheme directo, para poder ofrecer "sistema/claro/oscuro". */
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* Alpine no trae este CSS: sin esto, x-cloak no oculta nada hasta que
+   Alpine termina de inicializar (flash de contenido). */
+[x-cloak] {
+  display: none !important;
+}

@@ -49,6 +49,25 @@ CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "config.asgi:application"]
 # --- Target: worker (Celery) ---
 FROM base AS worker
 
-# Tesseract (OCR de imágenes) se instala acá en la Fase 3, junto con los
-# parsers de shared/.
+# Tesseract (OCR de imágenes, parsers/image.py y fallback de pdf.py) y
+# libmagic (detección real de mime type, rag_shared.mime). Solo en worker:
+# chat-web nunca los necesita.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        tesseract-ocr \
+        tesseract-ocr-spa \
+        libmagic1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Precarga el modelo de embeddings en build time (evita la descarga de
+# ~470 MB en la primera task de ingesta). Va a /opt/model-cache-seed y no a
+# MODEL_CACHE_DIR: ahí se monta en runtime el volumen models-cache (vacío
+# la primera vez, compartido con chat-rag-mcp), que taparía lo precargado
+# — entrypoint.sh lo copia al volumen si hace falta (mismo mecanismo que
+# rag-mcp/Dockerfile). LD_PRELOAD evita el "cannot allocate memory in
+# static TLS block" de scikit-learn+torch en ARM64.
+RUN LD_PRELOAD="$(find /app/.venv -iname 'libgomp-*.so*' | head -1)" \
+    GLIBC_TUNABLES="glibc.rtld.optional_static_tls=2097152" \
+    MODEL_CACHE_DIR=/opt/model-cache-seed \
+    python -c "from rag_shared.embeddings import preload; preload()"
+
 CMD ["celery", "-A", "config", "worker", "-l", "info", "-c", "2"]

@@ -4,14 +4,23 @@ El modelo (~470 MB) se carga una sola vez por proceso y se cachea en
 MODEL_CACHE_DIR (volumen `models-cache`, compartido con chat-worker para no
 duplicarlo). `preload()` se usa en build-time del Dockerfile para no pagar
 la descarga en el primer arranque del contenedor.
+
+El import de `sentence_transformers` (carga torch) es perezoso a propósito:
+si fuera top-level, cualquier cosa que importe este módulo transitivamente
+—incluido chat-web, que nunca embebe nada, solo porque
+apps.ingesta.views importa apps.ingesta.tasks— pagaría el costo (y el
+riesgo del bug de TLS en ARM64, ver Dockerfile/entrypoint.sh) de cargar
+torch en el arranque.
 """
 
 from __future__ import annotations
 
 import os
 from functools import lru_cache
+from typing import TYPE_CHECKING
 
-from sentence_transformers import SentenceTransformer
+if TYPE_CHECKING:
+    from sentence_transformers import SentenceTransformer
 
 EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "intfloat/multilingual-e5-small")
 MODEL_CACHE_DIR = os.environ.get("MODEL_CACHE_DIR", "/app/models")
@@ -23,7 +32,9 @@ PASSAGE_PREFIX = "passage: "
 
 
 @lru_cache(maxsize=1)
-def get_model() -> SentenceTransformer:
+def get_model() -> "SentenceTransformer":
+    from sentence_transformers import SentenceTransformer
+
     return SentenceTransformer(EMBEDDING_MODEL, cache_folder=MODEL_CACHE_DIR)
 
 

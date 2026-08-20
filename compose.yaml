@@ -59,8 +59,13 @@ services:
       QDRANT_COLLECTION: rag_documents
       EMBEDDING_MODEL: intfloat/multilingual-e5-small
       MODEL_CACHE_DIR: /app/models
+      DJANGO_SQLITE_PATH: /data/sqlite/db.sqlite3
     volumes:
       - models-cache:/app/models
+      # rag_list_documents lee filename/status/chunk_count de la tabla
+      # Document de Django directo por sqlite3 (rag_shared.documents_db) —
+      # solo lectura, chat-web/chat-worker son los únicos que escriben ahí.
+      - ./data/sqlite:/data/sqlite:ro
     expose: ["8100"]
     read_only: true
     tmpfs: [/tmp:size=32m]
@@ -78,7 +83,12 @@ services:
       context: .
       dockerfile: web/Dockerfile
       target: worker
-    image: chat-web:0.1.0
+    # Nombre de imagen propio, distinto del de chat-web: aunque salen del
+    # mismo Dockerfile, son targets con contenido distinto (este instala
+    # tesseract/libmagic y hornea el modelo de embeddings) — compartir tag
+    # hace que el build de uno pise el del otro y quede corriendo cualquiera
+    # de los dos según cuál se haya buildeado último.
+    image: chat-worker:0.1.0
     restart: unless-stopped
     command: celery -A config worker -l info -c 2
     deploy:
