@@ -1,0 +1,34 @@
+# Entorno y secretos
+.env
+*.env
+!.env.example
+
+# Datos y volúmenes (persistencia local)
+data/
+backups/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node/Tailwind (si aplica en el futuro)
+node_modules/
+
+# Modelos cacheados
+models-cache/
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
