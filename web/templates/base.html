@@ -1,0 +1,50 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}chat_rag{% endblock %}</title>
+  {% include "partials/theme_init.html" %}
+  <link rel="stylesheet" href="{% static 'css/tailwind.css' %}">
+  <script src="{% static 'js/vendor/alpine.min.js' %}" defer></script>
+</head>
+<body class="h-full bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+  <div class="flex h-full" x-data="{ sidebarOpen: true }">
+    <aside
+      class="flex flex-col overflow-hidden border-r border-slate-200 bg-slate-50 transition-all duration-200 dark:border-slate-800 dark:bg-slate-950"
+      :class="sidebarOpen ? 'w-64' : 'w-0'"
+    >
+      <div class="p-4 font-semibold whitespace-nowrap">chat_rag</div>
+      <nav class="flex-1 space-y-1 overflow-y-auto px-2">
+        <a
+          href="{% url 'chat:placeholder' %}"
+          class="block whitespace-nowrap rounded px-3 py-2 text-sm hover:bg-slate-200 dark:hover:bg-slate-800"
+        >
+          Chat
+        </a>
+      </nav>
+      <div class="border-t border-slate-200 p-2 dark:border-slate-800">
+        {% include "partials/user_menu.html" %}
+      </div>
+    </aside>
+
+    <div class="flex min-w-0 flex-1 flex-col">
+      <header class="flex items-center justify-between border-b border-slate-200 px-4 py-2 dark:border-slate-800">
+        <button
+          type="button"
+          @click="sidebarOpen = !sidebarOpen"
+          class="rounded p-2 hover:bg-slate-100 dark:hover:bg-slate-800"
+          aria-label="Mostrar/ocultar barra lateral"
+        >
+          ☰
+        </button>
+        {% include "partials/theme_toggle.html" %}
+      </header>
+      <main class="flex-1 overflow-y-auto p-6">
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+</body>
+</html>

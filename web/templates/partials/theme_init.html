@@ -1,0 +1,8 @@
+{# Evita el flash de tema incorrecto: aplica la clase `dark` antes del primer paint. #}
+<script>
+  (function () {
+    var stored = localStorage.theme || 'system';
+    var isDark = stored === 'dark' || (stored === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.classList.toggle('dark', isDark);
+  })();
+</script>
