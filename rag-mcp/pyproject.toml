@@ -5,8 +5,15 @@ description = "Servidor MCP del RAG: búsqueda semántica sobre documentos index
 requires-python = ">=3.12"
 dependencies = [
     "fastmcp>=2.0",
+    "starlette>=0.37",
     "sentence-transformers>=3.0",
-    "qdrant-client>=1.10",
+    # Direct (no solo transitiva vía sentence-transformers): así el override
+    # de [tool.uv.sources] hacia el índice CPU-only más abajo aplica seguro.
+    "torch>=2.2",
+    # Server pineado en compose.yaml a qdrant/qdrant:v1.17.1 — mantener el
+    # cliente a máximo 1 minor de diferencia (si no, tira warning de
+    # incompatibilidad en cada request).
+    "qdrant-client>=1.17,<1.19",
     "pydantic>=2.8",
     "structlog>=24.4",
     "rag-shared",
@@ -17,6 +24,15 @@ package = false
 
 [tool.uv.sources]
 rag-shared = { path = "../shared", editable = true }
+# Sin GPU (plan.md, sección 1): fuerza el build CPU-only de torch. El wheel
+# default de PyPI trae las librerías CUDA (~2 GB) como dependencia aunque
+# nunca se usen en este host ARM64 sin GPU.
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [dependency-groups]
 dev = [
