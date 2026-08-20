@@ -1,0 +1,151 @@
+services:
+  chat-qdrant:
+    image: qdrant/qdrant:v1.17.1
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 512M }
+    volumes:
+      - chat-qdrant-data:/qdrant/storage
+      - ./data/qdrant-snapshots:/qdrant/snapshots
+    expose: ["6333", "6334"]
+    # Sin ports: al host — solo accesible en la red ai-platform
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - "exec 3<>/dev/tcp/127.0.0.1/6333"
+      interval: 15s
+      timeout: 5s
+      start_period: 15s
+      retries: 5
+    networks: [ai-platform]
+
+  chat-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { cpus: "0.25", memory: 128M }
+    volumes:
+      - redis-data:/data
+    read_only: true
+    tmpfs: [/tmp:size=8m]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 15s
+    networks: [ai-platform]
+
+  chat-rag-mcp:
+    build:
+      context: .
+      dockerfile: rag-mcp/Dockerfile
+    image: chat-rag-mcp:0.1.0
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 512M }
+    environment:
+      QDRANT_URL: http://chat-qdrant:6333
+      QDRANT_COLLECTION: rag_documents
+      EMBEDDING_MODEL: intfloat/multilingual-e5-small
+      MODEL_CACHE_DIR: /app/models
+    volumes:
+      - models-cache:/app/models
+    expose: ["8100"]
+    read_only: true
+    tmpfs: [/tmp:size=32m]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    depends_on:
+      chat-qdrant: { condition: service_healthy }
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/health')"]
+      interval: 30s
+    networks: [ai-platform]
+
+  chat-worker:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      target: worker
+    image: chat-web:0.1.0
+    restart: unless-stopped
+    command: celery -A config worker -l info -c 2
+    deploy:
+      resources:
+        limits: { cpus: "2.0", memory: 2G }
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings
+      DATABASE_URL: sqlite:////data/sqlite/db.sqlite3
+      REDIS_URL: redis://chat-redis:6379/0
+      QDRANT_URL: http://chat-qdrant:6333
+      QDRANT_COLLECTION: rag_documents
+      EMBEDDING_MODEL: intfloat/multilingual-e5-small
+      MODEL_CACHE_DIR: /app/models
+      MEDIA_ROOT: /data/media
+    volumes:
+      - ./data/sqlite:/data/sqlite
+      - ./data/media:/data/media
+      - models-cache:/app/models
+    depends_on:
+      chat-redis: { condition: service_healthy }
+      chat-qdrant: { condition: service_healthy }
+    read_only: true
+    tmpfs: [/tmp:size=64m]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    networks: [ai-platform]
+
+  chat-web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      target: web
+    image: chat-web:0.1.0
+    restart: unless-stopped
+    command: daphne -b 0.0.0.0 -p 8000 config.asgi:application
+    deploy:
+      resources:
+        limits: { cpus: "1.5", memory: 512M }
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings
+      DATABASE_URL: sqlite:////data/sqlite/db.sqlite3
+      REDIS_URL: redis://chat-redis:6379/0
+      DATA_PLATFORM_MCP_URL: http://data-platform-mcp:8000/mcp
+      RAG_MCP_URL: http://chat-rag-mcp:8100/mcp
+      MEDIA_ROOT: /data/media
+      ALLOWED_HOSTS: localhost,127.0.0.1
+      CSRF_TRUSTED_ORIGINS: http://localhost:3004
+      # ANTHROPIC_API_KEY: se lee del volumen ~/.claude si usas suscripción Pro
+    volumes:
+      - ./data/sqlite:/data/sqlite
+      - ./data/media:/data/media
+      - ${HOME}/.claude:/root/.claude:ro  # credencial de Claude Code
+    ports:
+      - "127.0.0.1:3004:8000"
+    depends_on:
+      chat-redis: { condition: service_healthy }
+      chat-rag-mcp: { condition: service_healthy }
+      chat-qdrant: { condition: service_healthy }
+    read_only: true
+    tmpfs: [/tmp:size=64m]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]
+      interval: 30s
+    networks: [ai-platform]
+
+networks:
+  ai-platform:
+    name: ai-platform
+    external: true
+
+volumes:
+  redis-data:
+  models-cache:
+  chat-qdrant-data:
