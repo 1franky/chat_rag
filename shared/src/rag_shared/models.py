@@ -18,6 +18,19 @@ class DocumentStatus(StrEnum):
     FAILED = "failed"
 
 
+class TextBlock(BaseModel):
+    """Bloque de texto tal como lo extrae un parser, antes de chunkear.
+
+    Es más grueso que un Chunk final (un parser puede devolver, por
+    ejemplo, una página entera): `chunker.chunk_blocks` los recorta al
+    tamaño de chunk configurado, propagando `page`/`section`.
+    """
+
+    text: str
+    page: int | None = None
+    section: str | None = None
+
+
 class Chunk(BaseModel):
     """Un fragmento de texto indexado en Qdrant, con su metadata de origen.
 

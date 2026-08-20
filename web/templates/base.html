@@ -5,9 +5,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}chat_rag{% endblock %}</title>
+  {# CSRF_COOKIE_HTTPONLY=True (settings.py): JS no puede leer la cookie
+     csrftoken, así que el token viaja acá para que las requests con fetch/
+     XHR/htmx puedan mandarlo en el header X-CSRFToken. #}
+  <meta name="csrf-token" content="{{ csrf_token }}">
   {% include "partials/theme_init.html" %}
   <link rel="stylesheet" href="{% static 'css/tailwind.css' %}">
   <script src="{% static 'js/vendor/alpine.min.js' %}" defer></script>
+  <script src="{% static 'js/vendor/htmx.min.js' %}" defer></script>
+  <script src="{% static 'js/csrf.js' %}" defer></script>
 </head>
 <body class="h-full bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
   <div class="flex h-full" x-data="{ sidebarOpen: true }">
@@ -22,6 +28,12 @@
           class="block whitespace-nowrap rounded px-3 py-2 text-sm hover:bg-slate-200 dark:hover:bg-slate-800"
         >
           Chat
+        </a>
+        <a
+          href="{% url 'ingesta:list' %}"
+          class="block whitespace-nowrap rounded px-3 py-2 text-sm hover:bg-slate-200 dark:hover:bg-slate-800"
+        >
+          Documentos
         </a>
       </nav>
       <div class="border-t border-slate-200 p-2 dark:border-slate-800">

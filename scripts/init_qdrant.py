@@ -1,16 +1,14 @@
 #!/usr/bin/env python
 """Script one-off: crea la colección `rag_documents` en Qdrant si no existe.
 
-Uso (dentro del contenedor chat-rag-mcp, que es donde vive vector_store.py):
+Uso (dentro de cualquier contenedor con rag_shared instalado —
+chat-rag-mcp o chat-worker):
     docker compose exec chat-rag-mcp python /app/scripts/init_qdrant.py
 """
 
 import asyncio
-import sys
 
-sys.path.insert(0, "/app/rag-mcp")
-
-from vector_store import COLLECTION_NAME, QDRANT_URL, ensure_collection  # noqa: E402
+from rag_shared.vector_store import COLLECTION_NAME, QDRANT_URL, ensure_collection
 
 
 async def main() -> None:

@@ -15,6 +15,12 @@ dependencies = [
     "pydantic>=2.8",
     "structlog>=24.4",
     "rag-shared",
+    # chat-worker embebe y sube a Qdrant al procesar la ingesta (Fase 3),
+    # usando rag_shared.embeddings/vector_store. torch va directo (no solo
+    # transitivo vía rag-shared) para que el override de índice CPU-only de
+    # abajo aplique seguro — ver la nota en shared/pyproject.toml.
+    "torch>=2.2",
+    "qdrant-client>=1.17,<1.19",
 ]
 
 [tool.uv]
@@ -22,6 +28,12 @@ package = false
 
 [tool.uv.sources]
 rag-shared = { path = "../shared", editable = true }
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [dependency-groups]
 dev = [

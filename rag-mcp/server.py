@@ -1,49 +1,45 @@
 """Servidor MCP del RAG (FastMCP), ver plan.md sección 2.4.
 
-Fase 2: las tres tools son stubs que devuelven listas vacías — solo dejan
-registrada la interfaz que va a consumir el Agent SDK desde chat-web. La
-implementación real (Qdrant + embeddings) llega en la Fase 3.
+Fase 3: las tres tools ya no son stubs — usan rag_shared.vector_store
+(Qdrant), rag_shared.embeddings (el mismo modelo que usa la ingesta) y
+rag_shared.documents_db (lectura de la tabla Document de Django).
 """
 
 from __future__ import annotations
 
+import asyncio
 import os
 
 from fastmcp import FastMCP
-from rag_shared.models import Chunk, DocumentMeta
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-import vector_store
+from rag_shared import documents_db, vector_store
+from rag_shared.embeddings import embed_query
+from rag_shared.models import Chunk, DocumentMeta
 
 mcp = FastMCP("chat-rag")
 
 
 @mcp.tool
-def rag_search(query: str, top_k: int = 5) -> list[Chunk]:
-    """Busca los fragmentos más relevantes para `query` entre los documentos indexados.
-
-    Stub en la Fase 2: siempre devuelve una lista vacía.
-    """
-    return []
-
-
-@mcp.tool
-def rag_list_documents() -> list[DocumentMeta]:
-    """Lista los documentos indexados y su estado.
-
-    Stub en la Fase 2: siempre devuelve una lista vacía.
-    """
-    return []
+async def rag_search(query: str, top_k: int = 5) -> list[Chunk]:
+    """Busca los fragmentos más relevantes para `query` entre los documentos indexados."""
+    # embed_query es CPU-bound (sentence-transformers) y bloqueante: se
+    # corre en un thread aparte para no trabar el event loop del server.
+    vector = await asyncio.to_thread(embed_query, query)
+    return await vector_store.search(vector, top_k=top_k)
 
 
 @mcp.tool
-def rag_get_document_chunks(document_id: str) -> list[Chunk]:
-    """Devuelve todos los chunks de un documento indexado, en orden.
+async def rag_list_documents() -> list[DocumentMeta]:
+    """Lista los documentos indexados (o en proceso) y su estado."""
+    return await asyncio.to_thread(documents_db.list_documents)
 
-    Stub en la Fase 2: siempre devuelve una lista vacía.
-    """
-    return []
+
+@mcp.tool
+async def rag_get_document_chunks(document_id: str) -> list[Chunk]:
+    """Devuelve todos los chunks de un documento indexado, en orden."""
+    return await vector_store.get_document_chunks(document_id)
 
 
 @mcp.custom_route("/health", methods=["GET"])

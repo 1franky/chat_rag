@@ -33,11 +33,15 @@ ENV PATH="/app/.venv/bin:${PATH}"
 WORKDIR /app/rag-mcp
 
 # Precarga el modelo de embeddings en build time para no pagar la descarga
-# (~470 MB) en el primer arranque del contenedor. LD_PRELOAD evita el
-# "cannot allocate memory in static TLS block" de scikit-learn+torch en
-# ARM64 (ver entrypoint.sh para el detalle).
+# (~470 MB) en el primer arranque del contenedor. Va a /opt/model-cache-seed
+# y no a MODEL_CACHE_DIR: ahí se monta en runtime el volumen models-cache
+# (vacío la primera vez), que taparía lo precargado — entrypoint.sh lo
+# copia al volumen si hace falta. LD_PRELOAD evita el "cannot allocate
+# memory in static TLS block" de scikit-learn+torch en ARM64.
 RUN LD_PRELOAD="$(find /app/.venv -iname 'libgomp-*.so*' | head -1)" \
-    python -c "from embeddings import preload; preload()"
+    GLIBC_TUNABLES="glibc.rtld.optional_static_tls=2097152" \
+    MODEL_CACHE_DIR=/opt/model-cache-seed \
+    python -c "from rag_shared.embeddings import preload; preload()"
 
 RUN chmod +x entrypoint.sh
 ENTRYPOINT ["sh", "entrypoint.sh"]
