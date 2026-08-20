@@ -1,0 +1,31 @@
+# Build context para todos los Dockerfile (compose.yaml usa `context: .` en
+# la raíz del repo). Sin esto, Docker manda entornos locales enteros
+# (cientos de MB) al daemon y COPY rag-mcp/ / COPY web/ los mete en la
+# imagen.
+
+.git/
+**/.venv/
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+
+# Datos/volúmenes locales, nunca deben ir en una imagen
+data/
+backups/
+
+# Artefactos de Django que se generan en el propio build/entrypoint
+web/staticfiles/
+web/media/
+web/db.sqlite3
+
+# Locks de build de paquetes Python (dist/ de `uv build` local)
+**/dist/
+
+# Editor / OS / harness
+**/.DS_Store
+.vscode/
+.idea/
+.claude/

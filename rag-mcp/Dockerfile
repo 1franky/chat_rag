@@ -2,10 +2,6 @@
 #
 # Servidor MCP del RAG (FastMCP). Expone rag_search, rag_list_documents y
 # rag_get_document_chunks sobre la colección de Qdrant.
-#
-# NOTA (Fase 0): server.py, embeddings.py, qdrant_client.py y entrypoint.sh
-# se implementan en la Fase 2. Hasta entonces esta imagen no compila un
-# contenedor funcional — solo deja listo el andamiaje de dependencias.
 
 FROM python:3.12-slim AS base
 
@@ -27,6 +23,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     cd rag-mcp && uv sync --no-install-project
 
 COPY rag-mcp/ ./rag-mcp/
+# scripts/init_qdrant.py corre dentro de este contenedor (ver plan.md, sección 10).
+COPY scripts/ ./scripts/
 
 RUN --mount=type=cache,target=/root/.cache/uv \
     cd rag-mcp && uv sync
@@ -34,8 +32,13 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 ENV PATH="/app/.venv/bin:${PATH}"
 WORKDIR /app/rag-mcp
 
-# Precarga del modelo de embeddings en build time para evitar descarga en el
-# primer arranque (Fase 2, junto con embeddings.py):
-# RUN python -c "from embeddings import preload; preload()"
+# Precarga el modelo de embeddings en build time para no pagar la descarga
+# (~470 MB) en el primer arranque del contenedor. LD_PRELOAD evita el
+# "cannot allocate memory in static TLS block" de scikit-learn+torch en
+# ARM64 (ver entrypoint.sh para el detalle).
+RUN LD_PRELOAD="$(find /app/.venv -iname 'libgomp-*.so*' | head -1)" \
+    python -c "from embeddings import preload; preload()"
 
+RUN chmod +x entrypoint.sh
 ENTRYPOINT ["sh", "entrypoint.sh"]
+CMD ["python", "server.py"]
