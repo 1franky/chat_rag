@@ -31,6 +31,13 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 ENV PATH="/app/.venv/bin:${PATH}"
 WORKDIR /app/web
 
+# collectstatic corre acá (build time) y no en el entrypoint: con
+# read_only: true en compose.yaml el filesystem del contenedor no admite
+# escritura en runtime, así que STATIC_ROOT tiene que quedar ya resuelto
+# dentro de la imagen. DJANGO_SECRET_KEY dummy porque el comando la exige
+# pero no valida nada con ella.
+RUN DJANGO_SECRET_KEY=build-time-only python manage.py collectstatic --noinput
+
 RUN chmod +x entrypoint.sh
 ENTRYPOINT ["sh", "entrypoint.sh"]
 

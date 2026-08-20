@@ -25,6 +25,11 @@ services:
   chat-redis:
     image: redis:7-alpine
     restart: unless-stopped
+    # El entrypoint de la imagen oficial arranca como root y usa setpriv
+    # para bajar a "redis" (uid 999) — eso pide CAP_SETUID/CAP_SETGID, que
+    # cap_drop: [ALL] le saca. Arrancando ya como ese usuario nos saltamos
+    # el paso de setpriv y no hace falta devolverle esas capabilities.
+    user: "999:1000"
     deploy:
       resources:
         limits: { cpus: "0.25", memory: 128M }
@@ -98,6 +103,12 @@ services:
     tmpfs: [/tmp:size=64m]
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
+    # El proceso corre como root (sin USER en el Dockerfile) pero escribe en
+    # ./data/sqlite y ./data/media, bind mounts del host que son de tu
+    # usuario, no de root. Sin CAP_DAC_OVERRIDE, root deja de poder saltarse
+    # los permisos de archivo (deja de ser "root" a esos efectos) y la
+    # escritura falla con "unable to open database file".
+    cap_add: [DAC_OVERRIDE]
     networks: [ai-platform]
 
   chat-web:
@@ -135,6 +146,7 @@ services:
     tmpfs: [/tmp:size=64m]
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
+    cap_add: [DAC_OVERRIDE]  # ver el comentario en chat-worker
     healthcheck:
       test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]
       interval: 30s
