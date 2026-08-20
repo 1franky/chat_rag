@@ -18,6 +18,13 @@ venv/
 .mypy_cache/
 .ruff_cache/
 
+# SQLite de desarrollo local (fuera de Docker, sin DATABASE_URL)
+*.sqlite3
+
+# Django
+web/staticfiles/
+web/media/
+
 # Node/Tailwind (si aplica en el futuro)
 node_modules/
 

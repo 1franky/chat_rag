@@ -1,0 +1,50 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Iniciar sesión · chat_rag</title>
+  {% include "partials/theme_init.html" %}
+  <link rel="stylesheet" href="{% static 'css/tailwind.css' %}">
+  <script src="{% static 'js/vendor/alpine.min.js' %}" defer></script>
+</head>
+<body class="relative flex h-full items-center justify-center bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
+  <div class="absolute right-4 top-4">
+    {% include "partials/theme_toggle.html" %}
+  </div>
+
+  <div class="w-full max-w-sm rounded-lg border border-slate-200 p-6 dark:border-slate-800">
+    <h1 class="mb-6 text-xl font-semibold">chat_rag</h1>
+
+    {% if form.errors %}
+      <p class="mb-4 rounded bg-red-100 px-3 py-2 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+        Usuario o contraseña incorrectos.
+      </p>
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+      <div class="mb-4">
+        <label for="{{ form.username.id_for_label }}" class="mb-1 block text-sm font-medium">
+          Usuario
+        </label>
+        {{ form.username }}
+      </div>
+      <div class="mb-6">
+        <label for="{{ form.password.id_for_label }}" class="mb-1 block text-sm font-medium">
+          Contraseña
+        </label>
+        {{ form.password }}
+      </div>
+      <input type="hidden" name="next" value="{{ next }}">
+      <button
+        type="submit"
+        class="w-full rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:opacity-90 dark:bg-slate-100 dark:text-slate-900"
+      >
+        Ingresar
+      </button>
+    </form>
+  </div>
+</body>
+</html>

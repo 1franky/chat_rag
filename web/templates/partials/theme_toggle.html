@@ -1,0 +1,22 @@
+{# Toggle de tema (sistema/claro/oscuro), persistido en localStorage. #}
+<div
+  x-data="{ theme: localStorage.theme || 'system' }"
+  x-init="$watch('theme', value => {
+    localStorage.theme = value;
+    document.documentElement.classList.toggle(
+      'dark',
+      value === 'dark' || (value === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+    );
+  })"
+>
+  <label class="sr-only" for="theme-select">Tema</label>
+  <select
+    id="theme-select"
+    x-model="theme"
+    class="rounded border border-slate-300 bg-transparent px-2 py-1 text-sm dark:border-slate-700"
+  >
+    <option value="system">Sistema</option>
+    <option value="light">Claro</option>
+    <option value="dark">Oscuro</option>
+  </select>
+</div>

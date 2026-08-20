@@ -1,0 +1,5 @@
+@import "tailwindcss";
+
+/* Dark mode controlado por la clase `.dark` en <html> (toggle de Alpine),
+   no por prefers-color-scheme directo, para poder ofrecer "sistema/claro/oscuro". */
+@custom-variant dark (&:where(.dark, .dark *));
