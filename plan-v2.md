@@ -5,11 +5,117 @@ de Google Drive). Estas son fases nuevas, todavía sin implementar — cada
 una en su propia rama `Feature/Fase-NN` cuando se decida arrancarla, mismo
 flujo que v1 (ver `plan.md` para las convenciones de branching/testing).
 
-Numeración continua desde la Fase 7 de v1.
+Numeración continua desde la Fase 7 de v1. Las Fases 8 y 9 van primero por
+prioridad (pulido de UI de uso diario + salud del disco), antes que las
+features más grandes.
 
 ---
 
-### Fase 8 — Colecciones/carpetas de documentos
+### Fase 8 — Borrar conversación desde el sidebar + toggle de tema sin "sistema"
+
+**Objetivo**: dos ajustes de UI de uso diario.
+
+**Parte A — icono de borrar en el sidebar**: hoy borrar una conversación
+requiere abrirla primero (botón "Borrar" en `conversation.html`). Agregar
+un ícono de borrar directo en cada item del sidebar (`base.html`), sin
+tener que entrar a la conversación.
+
+Tareas:
+- [ ] `templates/base.html`: cada item del sidebar pasa de ser un `<a>`
+      suelto a un contenedor (`<div class="group flex items-center">`)
+      con el `<a>` (título, `flex-1 truncate`) y un `<form>` con botón de
+      borrar al lado — un `<a>` no puede contener un `<button>` (HTML
+      inválido), por eso el rediseño de wrapper.
+- [ ] Ícono siempre visible (no solo al hover): el proyecto ya pisó este
+      bug una vez con el botón de copiar del chat (`static/js/chat.js`,
+      comentario sobre `group-hover:` envuelto en `@media (hover: hover)`
+      — en touch, sin mouse, esa media query nunca matchea y el botón
+      queda oculto para siempre). No repetir el mismo error acá: mostrar
+      el ícono siempre (chico, `text-muted-foreground`, con
+      `hover:text-destructive`), no condicionado a hover.
+- [ ] Confirmación antes de borrar (`confirm()`, mismo patrón que ya usan
+      `_document_card.html` y el botón de borrar de `conversation.html`).
+- [ ] `chat/views.py::delete_conversation`: hoy siempre redirige a
+      `chat:home` — eso está bien si borrás la conversación que tenías
+      abierta, pero desde el sidebar lo normal es borrar OTRA mientras
+      seguís viendo la actual, y un redirect a `chat:home` te saca de
+      donde estabas para nada. Opciones a definir al implementar:
+      (a) fetch + JS remueve el `<a>` del sidebar in-place sin recargar
+      la página (mejor UX, pero la vista necesita devolver algo liviano
+      tipo 204 en vez de redirect cuando la llamada es AJAX — distinguir
+      por header custom o por `Accept`), con toast de confirmación
+      reusando el store de Alpine ya existente (`static/js/toast.js`);
+      solo redirigir a `chat:home` si la conversación borrada era la que
+      estaba abierta. (b) más simple pero peor UX: seguir con POST +
+      redirect normal, pero al `HTTP_REFERER` en vez de siempre a
+      `chat:home` cuando no es la conversación abierta. Preferencia: (a).
+
+**Parte B — toggle de tema sin "sistema", con aspecto de íconos**:
+`partials/theme_toggle.html` hoy es un `<select>` con 3 opciones
+(Sistema/Claro/Oscuro). Sacar "Sistema" y cambiar el `<select>` por
+botones tipo ícono (sol/luna).
+
+Tareas:
+- [ ] `partials/theme_toggle.html`: reemplazar el `<select>` por un botón
+      (o dos) con íconos — sol para claro, luna para oscuro. Patrón más
+      simple: un solo botón que alterna y muestra el ícono del tema
+      *actual* (click cambia al otro), en vez de dos botones separados.
+- [ ] `partials/theme_init.html`: sigue usando `matchMedia` para elegir un
+      default razonable la primera vez que se visita (sin preferencia
+      guardada todavía), pero una vez que el usuario toca el toggle
+      queda guardado explícito como `light`/`dark` en localStorage — ya
+      no existe el valor `'system'` como opción persistente/seleccionable,
+      solo como fallback inicial antes de la primera elección.
+- [ ] `accounts/settings.html`: usa el mismo partial, no necesita cambios
+      aparte de que ya no aparece la opción "Sistema" ahí tampoco.
+- [ ] Revisar accesibilidad: `aria-label` en el botón indicando la acción
+      ("Cambiar a tema oscuro"/"Cambiar a tema claro"), no solo el ícono.
+
+**Criterio de aceptación**: desde el sidebar borro una conversación sin
+abrirla y sin perder de vista la que tenía abierta. El selector de tema
+son íconos clicables, sin la opción "Sistema" en ningún lado.
+
+---
+
+### Fase 9 — Retención de backups por tamaño, no solo por días
+
+**Objetivo**: la Fase 7 (v1) dejó `scripts/backup.sh` con retención por
+antigüedad (`BACKUP_RETENTION_DAYS`, default 7 días) — con backup diario a
+las 3 AM (cron ya instalado), si el tamaño del backup crece (más
+documentos, colección de Qdrant más grande), 7 días de historial podría
+llenar el disco antes de que la retención por días llegue a limpiar nada.
+Cambiar a una política consciente del tamaño: conservar los últimos 2
+backups, pero si entre los dos superan un umbral (default 5 GB), quedarse
+solo con el más reciente.
+
+Tareas:
+- [ ] `scripts/backup.sh`: reemplazar el bloque de retención actual
+      (`find "$BACKUPS_DIR" -mtime "+$RETENTION_DAYS" -delete`) por:
+  1. Listar los backups existentes en `$BACKUPS_DIR` ordenados por fecha
+     (más reciente primero).
+  2. Si hay más de 2, borrar todos los que sobren de los 2 más recientes.
+  3. Sobre los que queden (como mucho 2), sumar su tamaño total; si supera
+     `BACKUP_MAX_SIZE_MB` (nueva env var, default 5120 = 5 GB), borrar
+     todos menos el más reciente.
+- [ ] `.env.example`: agregar `BACKUP_MAX_SIZE_MB` (documentado, comentado
+      con default), dejar `BACKUP_RETENTION_DAYS` documentado como
+      "cuántos backups conservar como máximo" en vez de días — ver si
+      conviene renombrarla a `BACKUP_MAX_COUNT` para que el nombre refleje
+      la semántica nueva (son 2 conceptos combinados: cantidad Y tamaño).
+- [ ] Loguear en `backup.sh` cuál de los dos criterios disparó el borrado
+      (cantidad vs tamaño), para que quede claro en `backups/cron.log`.
+- [ ] Probar contra el stack real: generar backups de prueba de tamaño
+      variable y confirmar que la política se aplica bien en los tres
+      casos (0, 1, 2+ backups previos; por debajo y por encima del umbral
+      de tamaño).
+
+**Criterio de aceptación**: con backup diario corriendo, `backups/` nunca
+tiene más de 2 archivos, y si esos 2 pesan más de 5 GB combinados, se queda
+con uno solo.
+
+---
+
+### Fase 10 — Colecciones/carpetas de documentos
 
 **Objetivo**: agrupar documentos en colecciones para organizar la librería
 y poder acotar la búsqueda RAG a un subconjunto ("buscá solo en la
@@ -47,7 +153,7 @@ pido, sigue buscando en todo por default).
 
 ---
 
-### Fase 9 — Compartir conversación por link
+### Fase 11 — Compartir conversación por link
 
 **Objetivo**: generar un link de solo lectura de una conversación para
 compartirla sin dar acceso a la cuenta.
@@ -72,7 +178,8 @@ Tareas:
       crea el `SharedLink` si no existe uno activo, copia la URL al
       portapapeles, toast de confirmación.
 - [ ] Botón "Revocar" (visible si ya hay un link activo).
-- [ ] Home de conversación show icono si tiene un link activo actualmente.
+- [ ] Home de conversación muestra un ícono si tiene un link activo
+      actualmente.
 
 **Criterio de aceptación**: comparto un link, lo abro en una ventana de
 incógnito (sin sesión) y veo la conversación de solo lectura. Lo revoco y
@@ -80,7 +187,7 @@ el link pasa a dar 404.
 
 ---
 
-### Fase 10 — Búsqueda híbrida (BM25 + vectorial)
+### Fase 12 — Búsqueda híbrida (BM25 + vectorial)
 
 **Objetivo**: mejorar precisión de retrieval combinando búsqueda léxica
 (BM25) con la vectorial actual — sobre todo para términos exactos/nombres
@@ -115,7 +222,7 @@ resultados por similitud puramente semántica ahora sí aparece arriba.
 
 ---
 
-### Fase 11 — Multi-modelo (elegir Sonnet vs Opus por conversación)
+### Fase 13 — Multi-modelo (elegir Sonnet vs Opus por conversación)
 
 **Objetivo**: poder elegir qué modelo de Claude usa cada conversación,
 con el trade-off de costo/velocidad/capacidad explícito.
@@ -140,43 +247,5 @@ Tareas:
 header lo muestra, y las respuestas efectivamente vienen de ese modelo
 (verificable indirectamente por latencia/calidad, o revisando el log
 estructurado del turno si se decide loguear el modelo usado).
-
----
-
-### Fase 12 — Retención de backups por tamaño, no solo por días
-
-**Objetivo**: la Fase 7 (v1) dejó `scripts/backup.sh` con retención por
-antigüedad (`BACKUP_RETENTION_DAYS`, default 7 días) — con backup diario a
-las 3 AM (cron ya instalado), si el tamaño del backup crece (más
-documentos, colección de Qdrant más grande), 7 días de historial podría
-llenar el disco antes de que la retención por días llegue a limpiar nada.
-Cambiar a una política consciente del tamaño: conservar los últimos 2
-backups, pero si entre los dos superan un umbral (default 5 GB), quedarse
-solo con el más reciente.
-
-Tareas:
-- [ ] `scripts/backup.sh`: reemplazar el bloque de retención actual
-      (`find "$BACKUPS_DIR" -mtime "+$RETENTION_DAYS" -delete`) por:
-  1. Listar los backups existentes en `$BACKUPS_DIR` ordenados por fecha
-     (más reciente primero).
-  2. Si hay más de 2, borrar todos los que sobren de los 2 más recientes.
-  3. Sobre los que queden (como mucho 2), sumar su tamaño total; si supera
-     `BACKUP_MAX_SIZE_MB` (nueva env var, default 5120 = 5 GB), borrar
-     todos menos el más reciente.
-- [ ] `.env.example`: agregar `BACKUP_MAX_SIZE_MB` (documentado, comentado
-      con default), dejar `BACKUP_RETENTION_DAYS` documentado como
-      "cuántos backups conservar como máximo" en vez de días — ver si
-      conviene renombrarla a `BACKUP_MAX_COUNT` para que el nombre refleje
-      la semántica nueva (son 2 conceptos combinados: cantidad Y tamaño).
-- [ ] Loguear en `backup.sh` cuál de los dos criterios disparó el borrado
-      (cantidad vs tamaño), para que quede claro en `backups/cron.log`.
-- [ ] Probar contra el stack real: generar backups de prueba de tamaño
-      variable y confirmar que la política se aplica bien en los tres
-      casos (0, 1, 2+ backups previos; por debajo y por encima del umbral
-      de tamaño).
-
-**Criterio de aceptación**: con backup diario corriendo, `backups/` nunca
-tiene más de 2 archivos, y si esos 2 pesan más de 5 GB combinados, se queda
-con uno solo.
 
 ---
