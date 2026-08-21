@@ -6,7 +6,7 @@ from pathlib import Path
 from celery import shared_task
 
 from rag_shared.chunker import chunk_blocks
-from rag_shared.embeddings import embed_passages
+from rag_shared.embeddings import embed_passages, embed_passages_sparse
 from rag_shared.mime import detect_mime_type
 from rag_shared.models import Chunk
 from rag_shared.parsers import UnsupportedMimeType, get_parser
@@ -89,8 +89,12 @@ def _process(document: Document) -> None:
 
     for start in range(0, len(chunks), EMBED_BATCH_SIZE):
         batch = chunks[start : start + EMBED_BATCH_SIZE]
-        vectors = embed_passages([chunk.text for chunk in batch])
-        upsert_chunks_sync(document.document_id, batch, vectors, collection_id=document.collection_id_str)
+        texts = [chunk.text for chunk in batch]
+        vectors = embed_passages(texts)
+        sparse_vectors = embed_passages_sparse(texts)
+        upsert_chunks_sync(
+            document.document_id, batch, vectors, sparse_vectors, collection_id=document.collection_id_str
+        )
 
     document.status = Document.Status.INDEXED
     document.chunk_count = len(chunks)

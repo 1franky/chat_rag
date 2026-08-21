@@ -204,13 +204,13 @@ el link pasa a dar 404.
 propios que un embedding semántico puede diluir.
 
 Tareas:
-- [ ] Nueva dependencia `fastembed` (`shared/pyproject.toml`) — se integra
+- [x] Nueva dependencia `fastembed` (`shared/pyproject.toml`) — se integra
       nativamente con `qdrant-client` para sparse vectors, no hace falta
       mantener un índice BM25 aparte.
-- [ ] `rag_shared/embeddings.py`: función nueva `embed_passages_sparse` /
+- [x] `rag_shared/embeddings.py`: función nueva `embed_passages_sparse` /
       `embed_query_sparse` (modelo BM25 de fastembed), mismo patrón lazy
       de import que ya usa `get_model()`.
-- [ ] `vector_store.py`:
+- [x] `vector_store.py`:
   - `_VECTORS_CONFIG` gana `sparse_vectors_config` (Qdrant soporta sparse
     vectors nativos desde v1.7+).
   - `_build_points`: cada punto gana el sparse vector calculado del texto
@@ -219,11 +219,12 @@ Tareas:
     `query_points` con `prefetch` (uno denso, uno sparse) y
     `fusion=models.Fusion.RRF` (Reciprocal Rank Fusion) para combinar
     ambos rankings en uno.
-- [ ] **Migración de datos**: reindexar todo lo ya subido (la colección
-      existente no tiene sparse vectors) — task de management command o
-      script que recorra `Document.objects.active()` y vuelva a correr
-      `process_document` para cada uno.
-- [ ] `ingesta/tasks.py::_process`: al embeber en batches, calcular
+- [x] **Migración de datos**: reindexar todo lo ya subido (la colección
+      existente no tiene sparse vectors) — management command
+      `reindex_documents` (borra y recrea la colección, ya con sparse
+      vectors, y reencola `process_document` para cada
+      `Document.objects.active()`).
+- [x] `ingesta/tasks.py::_process`: al embeber en batches, calcular
       también el sparse vector de cada batch.
 
 **Criterio de aceptación**: buscar un término exacto (ej. un código de
