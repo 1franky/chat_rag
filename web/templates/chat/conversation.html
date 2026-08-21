@@ -71,10 +71,12 @@
 </div>
 
 <script src="{% static 'js/vendor/marked.min.js' %}"></script>
-{# Bundle completo (todos los lenguajes autoregistrados) — los archivos
-   sueltos por lenguaje de highlight.js (lib/languages/*.js) son módulos
-   CommonJS pensados para un bundler; cargados como <script> plano tiran
-   "ReferenceError: module is not defined" y nunca se registran. #}
+{% comment %}
+  Bundle completo (todos los lenguajes autoregistrados) — los archivos
+  sueltos por lenguaje de highlight.js (lib/languages/*.js) son módulos
+  CommonJS pensados para un bundler; cargados como <script> plano tiran
+  "ReferenceError: module is not defined" y nunca se registran.
+{% endcomment %}
 <script src="{% static 'js/vendor/highlight/highlight.min.js' %}"></script>
 <script src="{% static 'js/chat.js' %}"></script>
 {% endblock %}

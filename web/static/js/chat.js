@@ -43,12 +43,16 @@ function chatPage(conversationId) {
     addCopyButton(codeBlock) {
       const pre = codeBlock.parentElement;
       if (!pre || pre.querySelector('.copy-btn')) return;
-      pre.classList.add('relative', 'group');
+      pre.classList.add('relative');
       const button = document.createElement('button');
       button.type = 'button';
       button.textContent = 'Copiar';
+      // Siempre visible (no group-hover): Tailwind envuelve `group-hover:`
+      // en `@media (hover: hover)`, así que en touch (sin mouse) esa media
+      // query nunca matchea y el botón quedaba `hidden` para siempre — no
+      // hay forma de "hacer hover" con el dedo.
       button.className =
-        'copy-btn absolute right-2 top-2 hidden rounded bg-slate-700 px-2 py-1 text-xs text-white group-hover:block hover:bg-slate-600';
+        'copy-btn absolute right-2 top-2 rounded bg-slate-700 px-2 py-1 text-xs text-white hover:bg-slate-600';
       button.addEventListener('click', () => {
         navigator.clipboard.writeText(codeBlock.innerText).then(() => {
           button.textContent = '¡Listo!';
