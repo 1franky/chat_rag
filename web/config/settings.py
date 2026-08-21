@@ -10,8 +10,21 @@ y en Docker.
 import os
 from pathlib import Path
 
+from rag_shared.logging import configure_logging
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Logging estructurado (JSON, plan.md Fase 7) — lo antes posible, antes de
+# que cualquier otra parte de Django emita un log. SERVICE_NAME distingue
+# chat-web de chat-worker (mismo settings.py, mismo DJANGO_SETTINGS_MODULE
+# para los dos — ver compose.yaml) en los logs.
+configure_logging(service=os.environ.get("SERVICE_NAME", "chat-web"))
+
+# LOGGING_CONFIG = None: le dice a Django que NO pise la configuración de
+# logging de arriba con su propio dictConfig por default (que reinstalaría
+# handlers y perdería el formatter JSON).
+LOGGING_CONFIG = None
 
 
 # --- Seguridad / entorno ----------------------------------------------------

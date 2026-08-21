@@ -5,6 +5,7 @@ from collections import defaultdict
 from datetime import timedelta
 from urllib.parse import urlencode
 
+import structlog
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import (
@@ -22,6 +23,8 @@ from django.views.decorators.http import require_GET, require_POST
 
 from . import agent
 from .models import Conversation, Message
+
+logger = structlog.get_logger()
 
 SUGGESTED_PROMPTS = [
     "¿Qué documentos tienes indexados ahora mismo?",
@@ -113,6 +116,8 @@ async def stream_message(request: HttpRequest, conversation_id) -> HttpResponse:
         # tool_use_id -> Message, para completar tool_result cuando llegue.
         pending_tool_messages: dict[str, Message] = {}
 
+        await logger.ainfo("chat_message_sent", conversation_id=str(conversation.id), message_length=len(user_text))
+
         try:
             async for event in agent.stream_reply(conversation.agent_session_id, user_text):
                 event_type = event["type"]
@@ -163,6 +168,7 @@ async def stream_message(request: HttpRequest, conversation_id) -> HttpResponse:
 
         except Exception as exc:  # noqa: BLE001 — se lo mostramos al usuario y cerramos el stream
             had_error = True
+            await logger.aerror("chat_stream_failed", conversation_id=str(conversation.id), exc_info=exc)
             yield _sse({"type": "error", "error": str(exc)})
 
         if assistant_text:
@@ -186,6 +192,7 @@ async def stream_message(request: HttpRequest, conversation_id) -> HttpResponse:
 def delete_conversation(request: HttpRequest, conversation_id) -> HttpResponse:
     conversation = _get_conversation_or_404(request, conversation_id)
     conversation.delete()
+    logger.info("conversation_deleted", conversation_id=str(conversation_id))
     messages.success(request, "Conversación borrada.")
     return redirect("chat:home")
 

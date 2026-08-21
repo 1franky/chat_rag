@@ -1,7 +1,19 @@
+# Logging driver nativo de Docker (plan.md, Fase 7) en vez de logrotate: los
+# tres servicios propios lo loguean todo a stdout/stderr (ver
+# rag_shared.logging), y json-file con max-size/max-file rota y trunca ahí
+# mismo — logrotate apunta a archivos en el filesystem del host, que acá no
+# aplica bien (read_only: true en los servicios propios).
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   chat-qdrant:
     image: qdrant/qdrant:v1.17.1
     restart: unless-stopped
+    logging: *default-logging
     deploy:
       resources:
         limits: { cpus: "1.0", memory: 512M }
@@ -25,6 +37,7 @@ services:
   chat-redis:
     image: redis:7-alpine
     restart: unless-stopped
+    logging: *default-logging
     # El entrypoint de la imagen oficial arranca como root y usa setpriv
     # para bajar a "redis" (uid 999) — eso pide CAP_SETUID/CAP_SETGID, que
     # cap_drop: [ALL] le saca. Arrancando ya como ese usuario nos saltamos
@@ -50,6 +63,7 @@ services:
       dockerfile: rag-mcp/Dockerfile
     image: chat-rag-mcp:0.1.0
     restart: unless-stopped
+    logging: *default-logging
     deploy:
       resources:
         # 512M (el original de la Fase 2) alcanzaba para el healthcheck y
@@ -96,12 +110,14 @@ services:
     # de los dos según cuál se haya buildeado último.
     image: chat-worker:0.1.0
     restart: unless-stopped
+    logging: *default-logging
     command: celery -A config worker -l info -c 2
     deploy:
       resources:
         limits: { cpus: "2.0", memory: 2G }
     env_file: .env
     environment:
+      SERVICE_NAME: chat-worker
       DJANGO_SETTINGS_MODULE: config.settings
       DATABASE_URL: sqlite:////data/sqlite/db.sqlite3
       REDIS_URL: redis://chat-redis:6379/0
@@ -136,6 +152,7 @@ services:
       target: web
     image: chat-web:0.1.0
     restart: unless-stopped
+    logging: *default-logging
     # uvicorn, no daphne — ver la nota en web/pyproject.toml. --loop asyncio
     # (no uvloop, aunque uvicorn[standard] lo trae e "auto" lo elegiría):
     # uvloop envuelve libuv, que tiene su propio manejo de señales/reaping
@@ -162,6 +179,7 @@ services:
         limits: { cpus: "1.5", memory: 2G }
     env_file: .env
     environment:
+      SERVICE_NAME: chat-web
       DJANGO_SETTINGS_MODULE: config.settings
       DATABASE_URL: sqlite:////data/sqlite/db.sqlite3
       REDIS_URL: redis://chat-redis:6379/0

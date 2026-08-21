@@ -6,4 +6,5 @@ app_name = "core"
 
 urlpatterns = [
     path("healthz", views.healthz, name="healthz"),
+    path("metrics", views.metrics, name="metrics"),
 ]

@@ -10,13 +10,18 @@ from __future__ import annotations
 import asyncio
 import os
 
+import structlog
 from fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from rag_shared import documents_db, vector_store
 from rag_shared.embeddings import embed_query
+from rag_shared.logging import configure_logging
 from rag_shared.models import Chunk, DocumentMeta
+
+configure_logging(service="chat-rag-mcp")
+logger = structlog.get_logger()
 
 mcp = FastMCP("chat-rag")
 
@@ -27,7 +32,9 @@ async def rag_search(query: str, top_k: int = 5) -> list[Chunk]:
     # embed_query es CPU-bound (sentence-transformers) y bloqueante: se
     # corre en un thread aparte para no trabar el event loop del server.
     vector = await asyncio.to_thread(embed_query, query)
-    return await vector_store.search(vector, top_k=top_k)
+    results = await vector_store.search(vector, top_k=top_k)
+    logger.info("rag_search", query=query, top_k=top_k, results=len(results))
+    return results
 
 
 @mcp.tool
@@ -46,9 +53,12 @@ async def rag_get_document_chunks(document_id: str) -> list[Chunk]:
 async def health(request: Request) -> JSONResponse:
     qdrant_ok = await vector_store.ping()
     status = 200 if qdrant_ok else 503
+    if not qdrant_ok:
+        logger.warning("health_check_degraded", qdrant=qdrant_ok)
     return JSONResponse({"status": "ok" if qdrant_ok else "degraded", "qdrant": qdrant_ok}, status_code=status)
 
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8100"))
+    logger.info("startup", port=port)
     mcp.run(transport="http", host="0.0.0.0", port=port)
