@@ -44,7 +44,9 @@ function chatPage(conversationId) {
     },
 
     renderExistingMarkdown() {
-      this.$refs.messageList.querySelectorAll('.markdown-body').forEach((el) => {
+      // :not([data-rendered]) — ver el comentario en renderMarkdown() sobre
+      // por qué esto tiene que ser idempotente.
+      this.$refs.messageList.querySelectorAll('.markdown-body:not([data-rendered])').forEach((el) => {
         try {
           this.renderMarkdown(el);
         } catch (renderError) {
@@ -54,8 +56,20 @@ function chatPage(conversationId) {
     },
 
     renderMarkdown(el) {
-      const raw = el.dataset.raw ?? el.textContent;
-      el.innerHTML = marked.parse(raw);
+      // Guardar el markdown crudo ANTES de tocar innerHTML (si todavía no
+      // está guardado) es necesario para que esto sea idempotente: si por
+      // lo que sea se llama dos veces sobre el mismo elemento, una segunda
+      // pasada que lea `el.textContent` ya NO vería el markdown crudo, sino
+      // el texto plano del HTML ya renderizado (sin los `**`/`` ` ``/etc.,
+      // ya convertidos a <strong>/<code>/<ol> reales) — y volver a mandar
+      // ESO a marked.parse() aplana todo el formato a un solo <p>. Con el
+      // raw ya guardado en dataset.raw, una repetición es un no-op inocuo
+      // (mismo resultado), en vez de destructiva.
+      if (!el.dataset.raw) {
+        el.dataset.raw = el.textContent;
+      }
+      el.innerHTML = marked.parse(el.dataset.raw);
+      el.dataset.rendered = 'true';
       el.querySelectorAll('pre code').forEach((block) => {
         hljs.highlightElement(block);
         this.addCopyButton(block);

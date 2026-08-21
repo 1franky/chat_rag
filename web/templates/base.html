@@ -13,10 +13,22 @@
   <meta name="csrf-token" content="{{ csrf_token }}">
   {% include "partials/theme_init.html" %}
   <link rel="stylesheet" href="{% static 'css/tailwind.css' %}">
+  {% comment %}
+    toast.js ANTES de alpine.min.js a propósito: registra el store 'toast'
+    en el evento 'alpine:init'. Alpine core se auto-arranca (Alpine.start())
+    apenas termina de ejecutarse a sí mismo — no espera a los <script defer>
+    que vienen después — así que si toast.js cargara después, Alpine ya
+    habría escaneado el DOM (incluyendo el x-for="item in $store.toast.items"
+    de partials/toasts.html) antes de que el store existiera, y tira
+    "Cannot read properties of undefined (reading 'items')", abortando el
+    arranque de Alpine para TODA la página (rompe también chatPage/init(),
+    que es por lo que el markdown no se renderizaba al recargar). Cualquier
+    plugin/store de Alpine va antes del core (así lo documenta Alpine mismo).
+  {% endcomment %}
+  <script src="{% static 'js/toast.js' %}" defer></script>
   <script src="{% static 'js/vendor/alpine.min.js' %}" defer></script>
   <script src="{% static 'js/vendor/htmx.min.js' %}" defer></script>
   <script src="{% static 'js/csrf.js' %}" defer></script>
-  <script src="{% static 'js/toast.js' %}" defer></script>
   {% block extra_head %}{% endblock %}
 </head>
 <body class="h-full bg-background font-sans text-foreground">

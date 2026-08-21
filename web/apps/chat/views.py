@@ -60,11 +60,17 @@ def new_conversation(request: HttpRequest) -> HttpResponse:
 @login_required
 def conversation_detail(request: HttpRequest, conversation_id) -> HttpResponse:
     conversation = _get_conversation_or_404(request, conversation_id)
-    messages = conversation.messages.all()
+    chat_messages = conversation.messages.all()
     return render(
         request,
         "chat/conversation.html",
-        {"conversation": conversation, "chat_messages": messages},
+        {
+            "conversation": conversation,
+            "chat_messages": chat_messages,
+            # Solo se usan si chat_messages está vacío (conversación recién
+            # creada) — ver el bloque de estado vacío en conversation.html.
+            "suggested_prompts": SUGGESTED_PROMPTS,
+        },
     )
 
 
