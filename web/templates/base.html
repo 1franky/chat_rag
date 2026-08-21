@@ -5,9 +5,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}chat_rag{% endblock %}</title>
-  {# CSRF_COOKIE_HTTPONLY=True (settings.py): JS no puede leer la cookie
-     csrftoken, así que el token viaja acá para que las requests con fetch/
-     XHR/htmx puedan mandarlo en el header X-CSRFToken. #}
+  {% comment %}
+    CSRF_COOKIE_HTTPONLY=True (settings.py): JS no puede leer la cookie
+    csrftoken, así que el token viaja acá para que las requests con fetch/
+    XHR/htmx puedan mandarlo en el header X-CSRFToken.
+  {% endcomment %}
   <meta name="csrf-token" content="{{ csrf_token }}">
   {% include "partials/theme_init.html" %}
   <link rel="stylesheet" href="{% static 'css/tailwind.css' %}">
@@ -19,7 +21,7 @@
 <body class="h-full bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
   <div class="flex h-full" x-data="{ sidebarOpen: true }">
     <aside
-      class="flex flex-col overflow-hidden border-r border-slate-200 bg-slate-50 transition-all duration-200 dark:border-slate-800 dark:bg-slate-950"
+      class="flex min-h-0 flex-col overflow-hidden border-r border-slate-200 bg-slate-50 transition-all duration-200 dark:border-slate-800 dark:bg-slate-950"
       :class="sidebarOpen ? 'w-64' : 'w-0'"
     >
       <div class="p-4 font-semibold whitespace-nowrap">chat_rag</div>
@@ -42,7 +44,7 @@
         </a>
       </div>
 
-      <nav class="mt-2 flex-1 space-y-3 overflow-y-auto px-2 pb-2">
+      <nav class="mt-2 min-h-0 flex-1 space-y-3 overflow-y-auto px-2 pb-2">
         {% for group_label, conversations in sidebar_conversations.items %}
           <div>
             <p class="px-3 pb-1 text-xs font-medium text-slate-400 dark:text-slate-500">{{ group_label }}</p>
@@ -76,7 +78,7 @@
         </button>
         {% include "partials/theme_toggle.html" %}
       </header>
-      <main class="flex min-h-0 flex-1 flex-col overflow-y-auto {% block main_padding %}p-6{% endblock %}">
+      <main class="flex min-h-0 flex-1 flex-col {% block main_padding %}overflow-y-auto p-6{% endblock %}">
         {% block content %}{% endblock %}
       </main>
     </div>

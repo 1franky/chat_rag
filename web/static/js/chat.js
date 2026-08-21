@@ -22,7 +22,13 @@ function chatPage(conversationId) {
     },
 
     renderExistingMarkdown() {
-      this.$refs.messageList.querySelectorAll('.markdown-body').forEach((el) => this.renderMarkdown(el));
+      this.$refs.messageList.querySelectorAll('.markdown-body').forEach((el) => {
+        try {
+          this.renderMarkdown(el);
+        } catch (renderError) {
+          console.error('No se pudo renderizar markdown:', renderError);
+        }
+      });
     },
 
     renderMarkdown(el) {
@@ -163,7 +169,14 @@ function chatPage(conversationId) {
 
       if (assistantText) {
         assistantBubble.dataset.raw = assistantText;
-        this.renderMarkdown(assistantBubble);
+        // El render de markdown/highlight puede fallar sin tumbar el chat:
+        // si tira acá, igual queremos liberar `sending` y dejar el mensaje
+        // legible (aunque sea en texto plano) en vez de trabar el input.
+        try {
+          this.renderMarkdown(assistantBubble);
+        } catch (renderError) {
+          console.error('No se pudo renderizar markdown:', renderError);
+        }
       } else {
         assistantBubble.parentElement.remove();
       }
