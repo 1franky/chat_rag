@@ -1,6 +1,8 @@
-{# Toggle de tema (sistema/claro/oscuro), persistido en localStorage.
-   También editable desde /settings/ (misma clave de localStorage, ver
-   accounts/settings.html) — este selector es el atajo rápido del header. #}
+{% comment %}
+  Toggle de tema (sistema/claro/oscuro), persistido en localStorage.
+  También editable desde /settings/ (misma clave de localStorage, ver
+  accounts/settings.html) — este selector es el atajo rápido del header.
+{% endcomment %}
 <div
   x-data="{ theme: localStorage.theme || 'system' }"
   x-init="$watch('theme', value => {

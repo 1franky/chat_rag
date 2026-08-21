@@ -1,6 +1,8 @@
-{# Contenedor de toasts: los mensajes de Django (server-side) se vuelcan acá
-   al cargar la página; los que dispara JS directo llaman a
-   `Alpine.store('toast').push(...)` (ver static/js/toast.js). #}
+{% comment %}
+  Contenedor de toasts: los mensajes de Django (server-side) se vuelcan acá
+  al cargar la página; los que dispara JS directo llaman a
+  `Alpine.store('toast').push(...)` (ver static/js/toast.js).
+{% endcomment %}
 <div
   x-data
   x-init="
