@@ -1,8 +1,14 @@
-{# Evita el flash de tema incorrecto: aplica la clase `dark` antes del primer paint. #}
+{% comment %}
+  Evita el flash de tema incorrecto: aplica la clase `dark` antes del primer
+  paint. `localStorage.theme` guarda 'light'/'dark' una vez que el usuario
+  toca el toggle (partials/theme_toggle.html) — mientras no exista ese valor
+  explícito (primera visita, o browsers con el viejo 'system' de antes de la
+  Fase 8 de plan-v2.md), matchMedia decide un default razonable.
+{% endcomment %}
 <script>
   (function () {
-    var stored = localStorage.theme || 'system';
-    var isDark = stored === 'dark' || (stored === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    var stored = localStorage.theme;
+    var isDark = stored ? stored === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
     document.documentElement.classList.toggle('dark', isDark);
   })();
 </script>

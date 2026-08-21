@@ -1,7 +1,9 @@
 @import "tailwindcss";
 
 /* Dark mode controlado por la clase `.dark` en <html> (toggle de Alpine),
-   no por prefers-color-scheme directo, para poder ofrecer "sistema/claro/oscuro". */
+   no por prefers-color-scheme directo: matchMedia solo se consulta como
+   fallback antes de la primera elección explícita del usuario (ver
+   partials/theme_init.html). */
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* Inter self-hosted (variable font: un solo archivo cubre weight 100-900),
