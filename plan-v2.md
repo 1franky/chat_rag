@@ -165,27 +165,31 @@ pido, sigue buscando en todo por default).
 compartirla sin dar acceso a la cuenta.
 
 Tareas:
-- [ ] Modelo `chat/models.py::SharedLink`: `conversation` FK,
+- [x] Modelo `chat/models.py::SharedLink`: `conversation` FK,
       `token` (`secrets.token_urlsafe(32)`, no adivinable), `created_at`,
       `revoked_at` (nullable). Separado de `Conversation` (no un campo
       único ahí) para poder revocar y tener más de un link histórico sin
       invalidar automáticamente el anterior.
-- [ ] Migración.
-- [ ] `apps/core/middlewares.py::EXEMPT_PATH_PREFIXES`: agregar el prefijo
+- [x] Migración.
+- [x] `apps/core/middlewares.py::EXEMPT_PATH_PREFIXES`: agregar el prefijo
       de la vista pública (ej. `/compartido/`).
-- [ ] Vista pública `chat/views.py::shared_conversation` en
+- [x] Vista pública `chat/views.py::shared_conversation` en
       `/compartido/<token>/` — sin `@login_required`, 404 si el token no
       existe o `revoked_at` no es nulo. Solo lectura: reusa
       `chat/_message.html` pero en un template standalone (no
       `base.html`) sin sidebar, composer, botón de exportar ni nada que
       exponga el resto de la cuenta — mismo criterio que
-      `templates/500.html` (Fase 5: standalone a propósito).
-- [ ] Botón "Compartir" en `conversation.html` (al lado de "Exportar"):
+      `templates/500.html` (Fase 5: standalone a propósito). Excluye
+      mensajes de tool (mismo criterio que `export_conversation`): pueden
+      traer fragmentos crudos de documentos propios en el resultado.
+- [x] Botón "Compartir" en `conversation.html` (al lado de "Exportar"):
       crea el `SharedLink` si no existe uno activo, copia la URL al
-      portapapeles, toast de confirmación.
-- [ ] Botón "Revocar" (visible si ya hay un link activo).
-- [ ] Home de conversación muestra un ícono si tiene un link activo
-      actualmente.
+      portapapeles, toast de confirmación. Con un link ya activo, dos
+      botones separados en vez de un solo toggle — "Copiar link" (para
+      poder volver a copiarlo sin generar uno nuevo) y "Revocar".
+- [x] Botón "Revocar" (visible si ya hay un link activo).
+- [x] Home de conversación muestra un ícono si tiene un link activo
+      actualmente (🔗 junto al título, en `conversation.html`).
 
 **Criterio de aceptación**: comparto un link, lo abro en una ventana de
 incógnito (sin sesión) y veo la conversación de solo lectura. Lo revoco y

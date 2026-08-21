@@ -266,3 +266,67 @@ function chatPage(conversationId) {
     },
   };
 }
+
+// Compartir conversación por link de solo lectura (plan-v2.md, Fase 11):
+// "Compartir" crea el link (o reusa el activo) y lo copia al portapapeles;
+// con un link ya activo, "Copiar link" lo vuelve a copiar sin generar uno
+// nuevo y "Revocar" lo invalida. `shareUrl` arranca con el valor que ya
+// haya en el server (conversation.html) — evita un fetch extra al cargar
+// la página si la conversación ya tenía un link activo de antes.
+function shareWidget(conversationId, initialShareUrl) {
+  return {
+    shareUrl: initialShareUrl,
+    busy: false,
+
+    async share() {
+      if (this.busy) return;
+      this.busy = true;
+      try {
+        const response = await fetch(`/chat/${conversationId}/compartir/`, {
+          method: 'POST',
+          headers: { 'X-CSRFToken': getCsrfToken() },
+        });
+        if (!response.ok) {
+          Alpine.store('toast').push('No se pudo generar el link.', 'error');
+          return;
+        }
+        const data = await response.json();
+        this.shareUrl = data.url;
+        await this.copyLink();
+      } finally {
+        this.busy = false;
+      }
+    },
+
+    async copyLink() {
+      try {
+        await navigator.clipboard.writeText(this.shareUrl);
+        Alpine.store('toast').push('Link copiado al portapapeles.', 'success');
+      } catch {
+        // Clipboard API puede fallar por permisos del navegador — el link
+        // ya está creado igual, mostrarlo en el toast (más tiempo, para
+        // poder copiarlo a mano) en vez de dejar al usuario sin nada.
+        Alpine.store('toast').push(`No se pudo copiar solo: ${this.shareUrl}`, 'error', 10000);
+      }
+    },
+
+    async revoke() {
+      if (this.busy) return;
+      this.busy = true;
+      try {
+        const response = await fetch(`/chat/${conversationId}/compartir/revocar/`, {
+          method: 'POST',
+          headers: { 'X-CSRFToken': getCsrfToken() },
+        });
+        if (!response.ok) {
+          Alpine.store('toast').push('No se pudo revocar el link.', 'error');
+          return;
+        }
+        this.shareUrl = null;
+        Alpine.store('toast').push('Link revocado.', 'success');
+      } finally {
+        this.busy = false;
+      }
+    },
+  };
+}

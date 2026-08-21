@@ -6,6 +6,7 @@ from datetime import timedelta
 from urllib.parse import urlencode
 
 import structlog
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import (
@@ -16,13 +17,13 @@ from django.http import (
     JsonResponse,
     StreamingHttpResponse,
 )
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
 from . import agent
-from .models import Conversation, Message
+from .models import Conversation, Message, SharedLink
 
 logger = structlog.get_logger()
 
@@ -64,6 +65,7 @@ def new_conversation(request: HttpRequest) -> HttpResponse:
 def conversation_detail(request: HttpRequest, conversation_id) -> HttpResponse:
     conversation = _get_conversation_or_404(request, conversation_id)
     chat_messages = conversation.messages.all()
+    active_link = conversation.shared_links.filter(revoked_at__isnull=True).first()
     return render(
         request,
         "chat/conversation.html",
@@ -73,6 +75,7 @@ def conversation_detail(request: HttpRequest, conversation_id) -> HttpResponse:
             # Solo se usan si chat_messages está vacío (conversación recién
             # creada) — ver el bloque de estado vacío en conversation.html.
             "suggested_prompts": SUGGESTED_PROMPTS,
+            "share_url": _share_url(request, active_link.token) if active_link else None,
         },
     )
 
@@ -221,6 +224,63 @@ def export_conversation(request: HttpRequest, conversation_id) -> HttpResponse:
     response = HttpResponse("\n".join(lines), content_type="text/markdown; charset=utf-8")
     response["Content-Disposition"] = f'attachment; filename="{conversation.id}.md"'
     return response
+
+
+@login_required
+@require_POST
+def share_conversation(request: HttpRequest, conversation_id) -> HttpResponse:
+    """Crea (o reusa, si ya hay uno activo) el link de solo lectura de esta
+    conversación — botón "Compartir" de conversation.html."""
+    conversation = _get_conversation_or_404(request, conversation_id)
+    link = conversation.shared_links.filter(revoked_at__isnull=True).first()
+    if link is None:
+        link = SharedLink.objects.create(conversation=conversation)
+        logger.info("shared_link_created", conversation_id=str(conversation_id))
+    return JsonResponse({"url": _share_url(request, link.token)})
+
+
+@login_required
+@require_POST
+def revoke_share(request: HttpRequest, conversation_id) -> HttpResponse:
+    """Revoca el link activo de esta conversación, si hay uno — botón
+    "Revocar" de conversation.html. Idempotente: revocar sin que haya un
+    link activo no es un error, simplemente no hace nada."""
+    conversation = _get_conversation_or_404(request, conversation_id)
+    updated = conversation.shared_links.filter(revoked_at__isnull=True).update(revoked_at=timezone.now())
+    if updated:
+        logger.info("shared_link_revoked", conversation_id=str(conversation_id))
+    return HttpResponse(status=204)
+
+
+@require_GET
+def shared_conversation(request: HttpRequest, token: str) -> HttpResponse:
+    """Vista pública de solo lectura en `/compartido/<token>/` (plan-v2.md,
+    Fase 11) — sin `@login_required` a propósito (ver
+    apps/core/middlewares.py::EXEMPT_PATH_PREFIXES, que exime este prefijo
+    del login forzado). 404 tanto si el token no existe como si el link ya
+    fue revocado — no hay forma de distinguir "no existe" de "revocado"
+    desde afuera, a propósito.
+
+    Excluye mensajes de tool (mismo criterio que export_conversation): el
+    contenido de un tool_result puede incluir fragmentos crudos de
+    documentos propios — no algo para exponer en un link que se puede
+    reenviar a cualquiera.
+    """
+    link = get_object_or_404(SharedLink, token=token, revoked_at__isnull=True)
+    conversation = link.conversation
+    chat_messages = conversation.messages.exclude(role=Message.Role.TOOL)
+    return render(
+        request,
+        "chat/shared_conversation.html",
+        {"conversation": conversation, "chat_messages": chat_messages},
+    )
+
+
+def _share_url(request: HttpRequest, token: str) -> str:
+    path = reverse("shared_conversation", args=[token])
+    if settings.PUBLIC_BASE_URL:
+        return f"{settings.PUBLIC_BASE_URL}{path}"
+    return request.build_absolute_uri(path)
 
 
 def _get_conversation_or_404(request: HttpRequest, conversation_id):
