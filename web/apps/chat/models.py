@@ -14,6 +14,14 @@ def _generate_share_token() -> str:
 
 
 class Conversation(models.Model):
+    class Model(models.TextChoices):
+        # Alias del Agent SDK ("sonnet"/"opus"), no un ID de modelo pineado
+        # (plan-v2.md, Fase 13) — el SDK/CLI los resuelve a la versión
+        # vigente de cada uno, así no hay que tocar este código cada vez
+        # que Anthropic libera un modelo nuevo.
+        SONNET = "sonnet", "Sonnet"
+        OPUS = "opus", "Opus"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="conversations")
     title = models.CharField(max_length=255, blank=True, default="")
@@ -21,6 +29,11 @@ class Conversation(models.Model):
     # para `resume` en el siguiente mensaje y así mantener el contexto de la
     # conversación entre requests (ver chat/agent.py).
     agent_session_id = models.CharField(max_length=64, blank=True, default="")
+    # Elegido al crear la conversación, no editable después (plan-v2.md,
+    # Fase 13) — cambiar de modelo a mitad de una conversación ya resumida
+    # por `agent_session_id` es confuso (el contexto previo quedó generado
+    # por el otro modelo).
+    model = models.CharField(max_length=16, choices=Model.choices, default=Model.SONNET)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

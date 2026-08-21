@@ -51,7 +51,7 @@ SYSTEM_PROMPT = (
 )
 
 
-def _build_options(resume: str | None) -> ClaudeAgentOptions:
+def _build_options(resume: str | None, model: str) -> ClaudeAgentOptions:
     return ClaudeAgentOptions(
         mcp_servers={
             "data-platform": {"type": "http", "url": DATA_PLATFORM_MCP_URL},
@@ -60,6 +60,9 @@ def _build_options(resume: str | None) -> ClaudeAgentOptions:
         system_prompt=SYSTEM_PROMPT,
         resume=resume or None,
         include_partial_messages=True,
+        # Alias del SDK ("sonnet"/"opus", plan-v2.md Fase 13) — elegido al
+        # crear la conversación (`Conversation.model`), no un ID pineado.
+        model=model,
         # Uso 100% personal (plan.md, sección 2.3): sin UI de aprobación de
         # tools por turno, todas las tools configuradas están ya de por sí
         # acotadas a los dos MCPs propios.
@@ -67,15 +70,17 @@ def _build_options(resume: str | None) -> ClaudeAgentOptions:
     )
 
 
-async def stream_reply(resume_session_id: str | None, user_message: str) -> AsyncIterator[dict[str, Any]]:
+async def stream_reply(resume_session_id: str | None, user_message: str, model: str) -> AsyncIterator[dict[str, Any]]:
     """Manda `user_message` a Claude y yield-ea eventos serializables:
 
     - {"type": "token", "text": str} — delta de texto (streaming real)
     - {"type": "tool_use", "id", "name", "input"} — Claude invoca una tool
     - {"type": "tool_result", "tool_use_id", "content", "is_error"}
     - {"type": "done", "session_id", "is_error", "error"} — fin del turno
+
+    `model`: alias del Agent SDK ("sonnet"/"opus") — `Conversation.model`.
     """
-    options = _build_options(resume_session_id)
+    options = _build_options(resume_session_id, model)
 
     async for message in query(prompt=user_message, options=options):
         if isinstance(message, StreamEvent):
@@ -108,4 +113,9 @@ async def stream_reply(resume_session_id: str | None, user_message: str) -> Asyn
                 "session_id": message.session_id,
                 "is_error": message.is_error,
                 "error": message.result if message.is_error else None,
+                # ID(s) de modelo real que resolvió el alias pedido
+                # (plan-v2.md, Fase 13) — solo para loguear y poder
+                # verificar que Opus/Sonnet efectivamente se usó, no para
+                # mostrar en la UI.
+                "resolved_model": list(message.model_usage) if message.model_usage else None,
             }

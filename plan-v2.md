@@ -239,24 +239,35 @@ resultados por similitud puramente semántica ahora sí aparece arriba.
 con el trade-off de costo/velocidad/capacidad explícito.
 
 Tareas:
-- [ ] `chat/models.py::Conversation.model` — `CharField` con `choices`
-      (`claude-sonnet-5` default, `claude-opus-5`; revisar el listado de
-      IDs vigente antes de hardcodear valores, cambian con el tiempo).
-- [ ] Migración (con default = Sonnet para conversaciones existentes).
-- [ ] `chat/agent.py::_build_options`: parámetro `model: str`, pasado a
+- [x] `chat/models.py::Conversation.model` — `CharField` con `choices`.
+      Alias del Agent SDK (`"sonnet"`/`"opus"`, default `"sonnet"`) en vez
+      de un ID de modelo pineado (`"claude-sonnet-5"` etc.): el SDK/CLI
+      resuelve el alias a la versión vigente, así este código no se pudre
+      cada vez que Anthropic libera un modelo nuevo.
+- [x] Migración (con default = Sonnet para conversaciones existentes).
+- [x] `chat/agent.py::_build_options`: parámetro `model: str`, pasado a
       `ClaudeAgentOptions(model=...)`.
-- [ ] `chat/views.py::new_conversation`: recibe el modelo elegido (form
-      field, default Sonnet si no se manda nada).
-- [ ] UI: selector en el flujo de "Nueva conversación" (no dentro de una
-      conversación ya empezada — cambiar de modelo a mitad con contexto
-      ya resumido es confuso). Nota visible de costo/velocidad
+- [x] `chat/views.py::new_conversation`: recibe el modelo elegido (form
+      field, default Sonnet si no se manda nada o el valor no es válido).
+- [x] UI: selector en el flujo de "Nueva conversación" — en el botón del
+      sidebar (`base.html`) y en el de `chat/empty.html` (no en los 4
+      prompts sugeridos de acceso rápido, esos quedan en Sonnet por
+      default para no meterles fricción). No dentro de una conversación
+      ya empezada. Nota visible de costo/velocidad en cada `<option>`
       (Opus: más capaz, más lento y caro · Sonnet: el equilibrio default).
-- [ ] Mostrar el modelo usado en el header de `conversation.html` (texto
+- [x] Mostrar el modelo usado en el header de `conversation.html` (texto
       chico, no interactivo, ya que no se puede cambiar después de creada).
 
 **Criterio de aceptación**: creo una conversación eligiendo Opus, el
 header lo muestra, y las respuestas efectivamente vienen de ese modelo
 (verificable indirectamente por latencia/calidad, o revisando el log
 estructurado del turno si se decide loguear el modelo usado).
+
+Cumplido: se agregó un evento `chat_turn_done` (`chat/views.py`) que
+loguea `model` (el alias pedido) y `resolved_model` (los IDs reales que
+devuelve `ResultMessage.model_usage`, plan-v2.md). Probado end-to-end
+contra el stack real — conversación creada con Opus, mensaje real
+mandado, log confirma `resolved_model` con `"claude-opus-5"`; conversación
+sin `model` en el POST cae al default `"sonnet"`.
 
 ---
