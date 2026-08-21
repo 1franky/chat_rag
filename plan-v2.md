@@ -95,7 +95,7 @@ backups, pero si entre los dos superan un umbral (default 5 GB), quedarse
 solo con el más reciente.
 
 Tareas:
-- [ ] `scripts/backup.sh`: reemplazar el bloque de retención actual
+- [x] `scripts/backup.sh`: reemplazar el bloque de retención actual
       (`find "$BACKUPS_DIR" -mtime "+$RETENTION_DAYS" -delete`) por:
   1. Listar los backups existentes en `$BACKUPS_DIR` ordenados por fecha
      (más reciente primero).
@@ -103,14 +103,14 @@ Tareas:
   3. Sobre los que queden (como mucho 2), sumar su tamaño total; si supera
      `BACKUP_MAX_SIZE_MB` (nueva env var, default 5120 = 5 GB), borrar
      todos menos el más reciente.
-- [ ] `.env.example`: agregar `BACKUP_MAX_SIZE_MB` (documentado, comentado
-      con default), dejar `BACKUP_RETENTION_DAYS` documentado como
-      "cuántos backups conservar como máximo" en vez de días — ver si
-      conviene renombrarla a `BACKUP_MAX_COUNT` para que el nombre refleje
-      la semántica nueva (son 2 conceptos combinados: cantidad Y tamaño).
-- [ ] Loguear en `backup.sh` cuál de los dos criterios disparó el borrado
+- [x] `.env.example`: agregar `BACKUP_MAX_SIZE_MB` (documentado, comentado
+      con default). Se renombró `BACKUP_RETENTION_DAYS` a `BACKUP_MAX_COUNT`
+      (default 2) para que el nombre refleje la semántica nueva (son 2
+      conceptos combinados: cantidad Y tamaño) — no había ningún valor
+      real seteado en `.env` que migrar (el host usa el default vía cron).
+- [x] Loguear en `backup.sh` cuál de los dos criterios disparó el borrado
       (cantidad vs tamaño), para que quede claro en `backups/cron.log`.
-- [ ] Probar contra el stack real: generar backups de prueba de tamaño
+- [x] Probar contra el stack real: generar backups de prueba de tamaño
       variable y confirmar que la política se aplica bien en los tres
       casos (0, 1, 2+ backups previos; por debajo y por encima del umbral
       de tamaño).

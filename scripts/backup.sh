@@ -13,7 +13,13 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_DIR"
 
 BACKUPS_DIR="${1:-$REPO_DIR/backups}"
-RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-7}"
+# Retención consciente del tamaño (plan-v2.md, Fase 9) — reemplaza la
+# retención por antigüedad de la Fase 7 (BACKUP_RETENTION_DAYS): con backup
+# diario por cron, si el tamaño de cada backup crece (más documentos,
+# colección de Qdrant más grande), retener por días podía llenar el disco
+# antes de que la retención llegara a borrar nada.
+MAX_COUNT="${BACKUP_MAX_COUNT:-2}"
+MAX_SIZE_MB="${BACKUP_MAX_SIZE_MB:-5120}"
 TIMESTAMP="$(date +%Y-%m-%d-%H%M)"
 WORK_DIR="$(mktemp -d)"
 QDRANT_COLLECTION="${QDRANT_COLLECTION:-rag_documents}"
@@ -94,10 +100,43 @@ FINAL="$BACKUPS_DIR/$TIMESTAMP.tar.gz"
 tar czf "$FINAL" -C "$WORK_DIR" .
 log "backup completo: $FINAL ($(du -h "$FINAL" | cut -f1))"
 
-# --- 5. Retención -----------------------------------------------------------
-log "aplicando retención de $RETENTION_DAYS días..."
-find "$BACKUPS_DIR" -maxdepth 1 -name "*.tar.gz" -mtime "+$RETENTION_DAYS" -print -delete | while read -r old; do
-    log "  borrado (>$RETENTION_DAYS días): $old"
-done
+# --- 5. Retención (cantidad + tamaño) ---------------------------------------
+# Dos criterios en cascada, cada uno logueado por separado para que quede
+# claro en backups/cron.log cuál disparó el borrado:
+#   1. Cantidad: como mucho $MAX_COUNT backups (default 2) — se borra todo
+#      lo que sobre de los más recientes.
+#   2. Tamaño: de los que queden (como mucho $MAX_COUNT), si combinados
+#      superan $MAX_SIZE_MB, se borran todos menos el más reciente.
+log "aplicando retención (máx $MAX_COUNT backups, ${MAX_SIZE_MB}MB combinados)..."
+
+# `ls -t`: orden por mtime, más reciente primero. `2>/dev/null || true`
+# porque bajo `set -e` un glob sin matches (no debería pasar acá, ya que
+# el backup recién creado siempre está, pero por las dudas) haría fallar a
+# `ls` con "No such file or directory" y abortaría el script entero.
+mapfile -t all_backups < <(cd "$BACKUPS_DIR" && ls -t -- *.tar.gz 2>/dev/null || true)
+
+if [ "${#all_backups[@]}" -gt "$MAX_COUNT" ]; then
+    for old in "${all_backups[@]:$MAX_COUNT}"; do
+        log "  borrado (excede $MAX_COUNT backups): $old"
+        rm -f "$BACKUPS_DIR/$old"
+    done
+fi
+
+mapfile -t kept_backups < <(cd "$BACKUPS_DIR" && ls -t -- *.tar.gz 2>/dev/null || true)
+
+if [ "${#kept_backups[@]}" -gt 1 ]; then
+    total_kb=0
+    for f in "${kept_backups[@]}"; do
+        total_kb=$((total_kb + $(du -k "$BACKUPS_DIR/$f" | cut -f1)))
+    done
+    total_mb=$((total_kb / 1024))
+    if [ "$total_mb" -gt "$MAX_SIZE_MB" ]; then
+        log "  ${#kept_backups[@]} backups combinados pesan ${total_mb}MB (> ${MAX_SIZE_MB}MB): conservando solo el más reciente"
+        for old in "${kept_backups[@]:1}"; do
+            log "  borrado (excede tamaño combinado): $old"
+            rm -f "$BACKUPS_DIR/$old"
+        done
+    fi
+fi
 
 log "listo."
