@@ -4,12 +4,10 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
-from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
-from rag_shared.vector_store import delete_document_sync
-
 from .models import Document
+from .services import delete_document
 from .tasks import process_document
 
 
@@ -50,11 +48,5 @@ def status(request: HttpRequest, document_id) -> HttpResponse:
 @require_POST
 def delete(request: HttpRequest, document_id) -> HttpResponse:
     document = get_object_or_404(Document.objects.active(), pk=document_id)
-
-    delete_document_sync(document.document_id)
-    document.file.delete(save=False)
-
-    document.deleted_at = timezone.now()
-    document.save(update_fields=["deleted_at"])
-
+    delete_document(document)
     return redirect("ingesta:list")

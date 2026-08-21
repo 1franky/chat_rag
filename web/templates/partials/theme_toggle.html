@@ -1,4 +1,6 @@
-{# Toggle de tema (sistema/claro/oscuro), persistido en localStorage. #}
+{# Toggle de tema (sistema/claro/oscuro), persistido en localStorage.
+   También editable desde /settings/ (misma clave de localStorage, ver
+   accounts/settings.html) — este selector es el atajo rápido del header. #}
 <div
   x-data="{ theme: localStorage.theme || 'system' }"
   x-init="$watch('theme', value => {
@@ -13,7 +15,7 @@
   <select
     id="theme-select"
     x-model="theme"
-    class="rounded border border-slate-300 bg-transparent px-2 py-1 text-sm dark:border-slate-700"
+    class="rounded-md border border-input bg-transparent px-2 py-1 text-sm"
   >
     <option value="system">Sistema</option>
     <option value="light">Claro</option>

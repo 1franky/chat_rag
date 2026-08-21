@@ -16,12 +16,18 @@
   <script src="{% static 'js/vendor/alpine.min.js' %}" defer></script>
   <script src="{% static 'js/vendor/htmx.min.js' %}" defer></script>
   <script src="{% static 'js/csrf.js' %}" defer></script>
+  <script src="{% static 'js/toast.js' %}" defer></script>
   {% block extra_head %}{% endblock %}
 </head>
-<body class="h-full bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100">
-  <div class="flex h-full" x-data="{ sidebarOpen: true }">
+<body class="h-full bg-background font-sans text-foreground">
+  <div
+    class="flex h-full"
+    x-data="{ sidebarOpen: true }"
+    @keydown.window.ctrl.b.prevent="sidebarOpen = !sidebarOpen"
+    @keydown.window.meta.b.prevent="sidebarOpen = !sidebarOpen"
+  >
     <aside
-      class="flex min-h-0 flex-col overflow-hidden border-r border-slate-200 bg-slate-50 transition-all duration-200 dark:border-slate-800 dark:bg-slate-950"
+      class="flex min-h-0 flex-col overflow-hidden border-r border-border bg-sidebar transition-all duration-200"
       :class="sidebarOpen ? 'w-64' : 'w-0'"
     >
       <div class="p-4 font-semibold whitespace-nowrap">chat_rag</div>
@@ -31,14 +37,15 @@
           {% csrf_token %}
           <button
             type="submit"
-            class="mb-2 flex w-full items-center gap-2 whitespace-nowrap rounded px-3 py-2 text-sm hover:bg-slate-200 dark:hover:bg-slate-800"
+            class="mb-2 flex w-full items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
           >
             <span>+</span> Nueva conversación
+            <kbd class="ml-auto rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">⌘K</kbd>
           </button>
         </form>
         <a
           href="{% url 'ingesta:list' %}"
-          class="block whitespace-nowrap rounded px-3 py-2 text-sm hover:bg-slate-200 dark:hover:bg-slate-800"
+          class="block whitespace-nowrap rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
         >
           Documentos
         </a>
@@ -47,11 +54,11 @@
       <nav class="mt-2 min-h-0 flex-1 space-y-3 overflow-y-auto px-2 pb-2">
         {% for group_label, conversations in sidebar_conversations.items %}
           <div>
-            <p class="px-3 pb-1 text-xs font-medium text-slate-400 dark:text-slate-500">{{ group_label }}</p>
+            <p class="px-3 pb-1 text-xs font-medium text-muted-foreground">{{ group_label }}</p>
             {% for conv in conversations %}
               <a
                 href="{% url 'chat:detail' conv.id %}"
-                class="block truncate rounded px-3 py-2 text-sm hover:bg-slate-200 dark:hover:bg-slate-800 {% if conv.id == conversation.id %}bg-slate-200 dark:bg-slate-800{% endif %}"
+                class="block truncate rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground {% if conv.id == conversation.id %}bg-accent text-accent-foreground{% endif %}"
                 title="{{ conv.title }}"
               >
                 {{ conv.title|default:"Sin título" }}
@@ -61,18 +68,19 @@
         {% endfor %}
       </nav>
 
-      <div class="border-t border-slate-200 p-2 dark:border-slate-800">
+      <div class="border-t border-border p-2">
         {% include "partials/user_menu.html" %}
       </div>
     </aside>
 
     <div class="flex min-w-0 flex-1 flex-col">
-      <header class="flex items-center justify-between border-b border-slate-200 px-4 py-2 dark:border-slate-800">
+      <header class="flex items-center justify-between border-b border-border px-4 py-2">
         <button
           type="button"
           @click="sidebarOpen = !sidebarOpen"
-          class="rounded p-2 hover:bg-slate-100 dark:hover:bg-slate-800"
-          aria-label="Mostrar/ocultar barra lateral"
+          class="rounded-md p-2 hover:bg-accent hover:text-accent-foreground"
+          aria-label="Mostrar/ocultar barra lateral (Ctrl/Cmd+B)"
+          title="Mostrar/ocultar barra lateral (Ctrl/Cmd+B)"
         >
           ☰
         </button>
@@ -83,5 +91,7 @@
       </main>
     </div>
   </div>
+
+  {% include "partials/toasts.html" %}
 </body>
 </html>

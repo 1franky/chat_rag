@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Configuración · chat_rag{% endblock %}
+
+{% block content %}
+<div class="mx-auto w-full max-w-xl space-y-8">
+  <h1 class="text-2xl font-semibold">Configuración</h1>
+
+  <section class="rounded-lg border border-border p-5 shadow-sm">
+    <h2 class="mb-1 text-sm font-semibold">Tema</h2>
+    <p class="mb-3 text-sm text-muted-foreground">
+      Se guarda en este navegador. El mismo control está disponible arriba a la derecha en cualquier pantalla.
+    </p>
+    {% include "partials/theme_toggle.html" %}
+  </section>
+
+  <section class="rounded-lg border border-border p-5 shadow-sm">
+    <h2 class="mb-3 text-sm font-semibold">Cambiar contraseña</h2>
+    <form method="post" class="space-y-4">
+      {% csrf_token %}
+      {% for field in form %}
+        <div>
+          <label for="{{ field.id_for_label }}" class="mb-1 block text-sm font-medium">{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}
+            <p class="mt-1 text-xs text-muted-foreground">{{ field.help_text|safe }}</p>
+          {% endif %}
+          {% for error in field.errors %}
+            <p class="mt-1 text-xs text-destructive">{{ error }}</p>
+          {% endfor %}
+        </div>
+      {% endfor %}
+      <button
+        type="submit"
+        class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+      >
+        Actualizar contraseña
+      </button>
+    </form>
+  </section>
+
+  <section class="rounded-lg border border-destructive/40 p-5 shadow-sm">
+    <h2 class="mb-1 text-sm font-semibold text-destructive">Zona de peligro</h2>
+    <p class="mb-3 text-sm text-muted-foreground">
+      Borra todas las conversaciones y todos los documentos indexados (incluyendo sus chunks en Qdrant).
+      No se puede deshacer.
+    </p>
+    <form
+      method="post"
+      action="{% url 'accounts:delete_all_data' %}"
+      onsubmit="return confirm('¿Borrar TODAS las conversaciones y TODOS los documentos? Esto no se puede deshacer.');"
+    >
+      {% csrf_token %}
+      <button
+        type="submit"
+        class="rounded-md border border-destructive bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:opacity-90"
+      >
+        Borrar todos mis datos
+      </button>
+    </form>
+  </section>
+</div>
+{% endblock %}

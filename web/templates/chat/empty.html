@@ -5,18 +5,34 @@
 {% block content %}
 <div class="flex h-full flex-col items-center justify-center text-center">
   <h1 class="mb-2 text-2xl font-semibold">¡Hola, {{ request.user.username }}!</h1>
-  <p class="mb-6 max-w-md text-slate-500 dark:text-slate-400">
-    Todavía no tenés conversaciones. Arrancá una — Claude tiene acceso a los
+  <p class="mb-6 max-w-md text-muted-foreground">
+    Todavía no tienes conversaciones. Empieza una — Claude tiene acceso a los
     documentos que subiste y a las tools de datos conectadas.
   </p>
-  <form method="post" action="{% url 'chat:new' %}">
+
+  <form method="post" action="{% url 'chat:new' %}" class="mb-8">
     {% csrf_token %}
     <button
       type="submit"
-      class="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:opacity-90 dark:bg-slate-100 dark:text-slate-900"
+      class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
     >
       Nueva conversación
     </button>
   </form>
+
+  <div class="grid w-full max-w-lg grid-cols-1 gap-2 sm:grid-cols-2">
+    {% for prompt in suggested_prompts %}
+      <form method="post" action="{% url 'chat:new' %}">
+        {% csrf_token %}
+        <input type="hidden" name="prompt" value="{{ prompt }}">
+        <button
+          type="submit"
+          class="w-full rounded-md border border-border p-3 text-left text-sm text-muted-foreground hover:border-ring hover:bg-accent hover:text-accent-foreground"
+        >
+          {{ prompt }}
+        </button>
+      </form>
+    {% endfor %}
+  </div>
 </div>
 {% endblock %}

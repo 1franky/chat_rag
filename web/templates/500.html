@@ -1,0 +1,58 @@
+{% comment %}
+  A propósito NO extiende base.html: el handler `server_error` de Django
+  renderiza este template SIN request ni context processors (para no
+  arriesgarse a que el propio manejo del error 500 dispare otro error —
+  p.ej. si `sidebar_conversations` no puede pegarle a la base). Por eso acá
+  no hay `{% url %}` con namespace de app, ni tokens CSS del theme (que
+  dependen de la clase `.dark` que pone Alpine), ni Tailwind: todo inline y
+  con `prefers-color-scheme` puro, para que se vea bien incluso si el
+  problema es justamente algo roto en el deploy de estáticos.
+{% endcomment %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Error del servidor · chat_rag</title>
+  <style>
+    :root { --bg: #ffffff; --fg: #0f172a; --muted: #64748b; --border: #e2e8f0; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #0f172a; --fg: #f1f5f9; --muted: #94a3b8; --border: #1e293b; }
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      padding: 1.5rem;
+    }
+    p.code { margin: 0 0 0.5rem; font-size: 0.875rem; font-weight: 500; color: var(--muted); }
+    h1 { margin: 0 0 0.5rem; font-size: 1.5rem; font-weight: 600; }
+    p.desc { margin: 0 0 1.5rem; max-width: 28rem; color: var(--muted); }
+    a.button {
+      border-radius: 0.5rem;
+      padding: 0.5rem 1rem;
+      font-size: 0.875rem;
+      font-weight: 500;
+      text-decoration: none;
+      background: var(--fg);
+      color: var(--bg);
+    }
+    a.button:hover { opacity: 0.9; }
+  </style>
+</head>
+<body>
+  <p class="code">500</p>
+  <h1>Algo salió mal de nuestro lado</h1>
+  <p class="desc">
+    Hubo un error inesperado en el servidor. Ya quedó registrado — intenta de nuevo en un momento.
+  </p>
+  <a class="button" href="/">Volver al inicio</a>
+</body>
+</html>
