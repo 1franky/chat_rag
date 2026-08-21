@@ -30,7 +30,11 @@ function sidebarConversationItem(conversationId, deleteUrl) {
         return;
       }
 
-      this.$el.remove();
+      // $root (no $el): $el es el nodo donde Alpine evaluó la expresión —
+      // acá, el <button> mismo, no el <div x-data> que envuelve todo el
+      // item — así que $el.remove() solo sacaba el botón y dejaba un item
+      // fantasma (el <a> con el título) en el sidebar.
+      this.$root.remove();
       Alpine.store('toast').push('Conversación borrada.', 'success');
     },
   };
