@@ -21,21 +21,23 @@ un ícono de borrar directo en cada item del sidebar (`base.html`), sin
 tener que entrar a la conversación.
 
 Tareas:
-- [ ] `templates/base.html`: cada item del sidebar pasa de ser un `<a>`
-      suelto a un contenedor (`<div class="group flex items-center">`)
-      con el `<a>` (título, `flex-1 truncate`) y un `<form>` con botón de
-      borrar al lado — un `<a>` no puede contener un `<button>` (HTML
-      inválido), por eso el rediseño de wrapper.
-- [ ] Ícono siempre visible (no solo al hover): el proyecto ya pisó este
+- [x] `templates/base.html`: cada item del sidebar pasa de ser un `<a>`
+      suelto a un contenedor (`<div class="flex items-center">`) con el
+      `<a>` (título, `flex-1 truncate`) y un botón de borrar al lado — un
+      `<a>` no puede contener un `<button>` (HTML inválido), por eso el
+      rediseño de wrapper. Terminó siendo un `<button>` manejado por Alpine
+      + fetch (`static/js/sidebar.js`) en vez de un `<form>` con submit
+      normal, ya que la Opción (a) de abajo requiere JS de todos modos.
+- [x] Ícono siempre visible (no solo al hover): el proyecto ya pisó este
       bug una vez con el botón de copiar del chat (`static/js/chat.js`,
       comentario sobre `group-hover:` envuelto en `@media (hover: hover)`
       — en touch, sin mouse, esa media query nunca matchea y el botón
       queda oculto para siempre). No repetir el mismo error acá: mostrar
       el ícono siempre (chico, `text-muted-foreground`, con
       `hover:text-destructive`), no condicionado a hover.
-- [ ] Confirmación antes de borrar (`confirm()`, mismo patrón que ya usan
+- [x] Confirmación antes de borrar (`confirm()`, mismo patrón que ya usan
       `_document_card.html` y el botón de borrar de `conversation.html`).
-- [ ] `chat/views.py::delete_conversation`: hoy siempre redirige a
+- [x] `chat/views.py::delete_conversation`: hoy siempre redirige a
       `chat:home` — eso está bien si borrás la conversación que tenías
       abierta, pero desde el sidebar lo normal es borrar OTRA mientras
       seguís viendo la actual, y un redirect a `chat:home` te saca de
@@ -49,6 +51,10 @@ Tareas:
       estaba abierta. (b) más simple pero peor UX: seguir con POST +
       redirect normal, pero al `HTTP_REFERER` en vez de siempre a
       `chat:home` cuando no es la conversación abierta. Preferencia: (a).
+      Implementado (a): distinguido por el header `X-Requested-With:
+      XMLHttpRequest` (mandado desde `sidebar.js`); el botón "Borrar" de
+      `conversation.html` sigue siendo un `<form>` clásico (sin ese
+      header), así que conserva el redirect + mensaje de siempre.
 
 **Parte B — toggle de tema sin "sistema", con aspecto de íconos**:
 `partials/theme_toggle.html` hoy es un `<select>` con 3 opciones
@@ -56,19 +62,19 @@ Tareas:
 botones tipo ícono (sol/luna).
 
 Tareas:
-- [ ] `partials/theme_toggle.html`: reemplazar el `<select>` por un botón
+- [x] `partials/theme_toggle.html`: reemplazar el `<select>` por un botón
       (o dos) con íconos — sol para claro, luna para oscuro. Patrón más
       simple: un solo botón que alterna y muestra el ícono del tema
       *actual* (click cambia al otro), en vez de dos botones separados.
-- [ ] `partials/theme_init.html`: sigue usando `matchMedia` para elegir un
+- [x] `partials/theme_init.html`: sigue usando `matchMedia` para elegir un
       default razonable la primera vez que se visita (sin preferencia
       guardada todavía), pero una vez que el usuario toca el toggle
       queda guardado explícito como `light`/`dark` en localStorage — ya
       no existe el valor `'system'` como opción persistente/seleccionable,
       solo como fallback inicial antes de la primera elección.
-- [ ] `accounts/settings.html`: usa el mismo partial, no necesita cambios
+- [x] `accounts/settings.html`: usa el mismo partial, no necesita cambios
       aparte de que ya no aparece la opción "Sistema" ahí tampoco.
-- [ ] Revisar accesibilidad: `aria-label` en el botón indicando la acción
+- [x] Revisar accesibilidad: `aria-label` en el botón indicando la acción
       ("Cambiar a tema oscuro"/"Cambiar a tema claro"), no solo el ícono.
 
 **Criterio de aceptación**: desde el sidebar borro una conversación sin

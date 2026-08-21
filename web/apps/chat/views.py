@@ -193,6 +193,15 @@ def delete_conversation(request: HttpRequest, conversation_id) -> HttpResponse:
     conversation = _get_conversation_or_404(request, conversation_id)
     conversation.delete()
     logger.info("conversation_deleted", conversation_id=str(conversation_id))
+
+    # Borrado desde el ícono del sidebar (static/js/sidebar.js, plan-v2.md
+    # Fase 8): 204 sin body — el JS decide ahí mismo si hace falta navegar
+    # (borraste la conversación que tenías abierta) o solo sacar el <a> del
+    # sidebar (borraste otra), sin el redirect a chat:home de siempre, que
+    # sacaría al usuario de donde estaba para nada.
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return HttpResponse(status=204)
+
     messages.success(request, "Conversación borrada.")
     return redirect("chat:home")
 

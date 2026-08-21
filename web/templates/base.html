@@ -29,9 +29,10 @@
   <script src="{% static 'js/vendor/alpine.min.js' %}" defer></script>
   <script src="{% static 'js/vendor/htmx.min.js' %}" defer></script>
   <script src="{% static 'js/csrf.js' %}" defer></script>
+  <script src="{% static 'js/sidebar.js' %}" defer></script>
   {% block extra_head %}{% endblock %}
 </head>
-<body class="h-full bg-background font-sans text-foreground">
+<body class="h-full bg-background font-sans text-foreground" data-chat-home-url="{% url 'chat:home' %}">
   <div
     class="flex h-full"
     x-data="{ sidebarOpen: true }"
@@ -68,13 +69,40 @@
           <div>
             <p class="px-3 pb-1 text-xs font-medium text-muted-foreground">{{ group_label }}</p>
             {% for conv in conversations %}
-              <a
-                href="{% url 'chat:detail' conv.id %}"
-                class="block truncate rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground {% if conv.id == conversation.id %}bg-accent text-accent-foreground{% endif %}"
-                title="{{ conv.title }}"
+              {% comment %}
+                Wrapper en vez de un <a> suelto: un <a> no puede contener un
+                <button> (HTML inválido), y desde acá se puede borrar la
+                conversación sin necesidad de abrirla primero (plan-v2.md,
+                Fase 8).
+              {% endcomment %}
+              <div
+                class="flex items-center rounded-md text-sm hover:bg-accent hover:text-accent-foreground {% if conv.id == conversation.id %}bg-accent text-accent-foreground{% endif %}"
+                x-data="sidebarConversationItem('{{ conv.id }}', '{% url 'chat:delete' conv.id %}')"
               >
-                {{ conv.title|default:"Sin título" }}
-              </a>
+                <a
+                  href="{% url 'chat:detail' conv.id %}"
+                  class="block flex-1 truncate px-3 py-2"
+                  title="{{ conv.title }}"
+                >
+                  {{ conv.title|default:"Sin título" }}
+                </a>
+                {% comment %}
+                  Ícono siempre visible, NO condicionado a hover: el proyecto
+                  ya pisó ese bug una vez con el botón de copiar del chat
+                  (static/js/chat.js) — `group-hover:` de Tailwind se envuelve
+                  en `@media (hover: hover)`, que en touch (sin mouse) nunca
+                  matchea y deja el botón oculto para siempre.
+                {% endcomment %}
+                <button
+                  type="button"
+                  @click="deleteConversation()"
+                  class="mr-1 shrink-0 rounded p-1 text-muted-foreground hover:text-destructive"
+                  aria-label="Borrar conversación «{{ conv.title|default:'Sin título' }}»"
+                  title="Borrar conversación"
+                >
+                  <span aria-hidden="true">🗑</span>
+                </button>
+              </div>
             {% endfor %}
           </div>
         {% endfor %}

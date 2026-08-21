@@ -1,26 +1,27 @@
 {% comment %}
-  Toggle de tema (sistema/claro/oscuro), persistido en localStorage.
-  También editable desde /settings/ (misma clave de localStorage, ver
-  accounts/settings.html) — este selector es el atajo rápido del header.
+  Toggle de tema (claro/oscuro), persistido en localStorage. Sin opción
+  "sistema" (plan-v2.md, Fase 8): theme_init.html sigue usando matchMedia,
+  pero solo como fallback para elegir un default razonable ANTES de que el
+  usuario haya tocado este botón alguna vez — una vez que lo toca, queda
+  guardado un valor explícito y matchMedia deja de consultarse.
+  También editable desde /settings/ (mismo store de localStorage, ver
+  accounts/settings.html) — este es el atajo rápido del header.
 {% endcomment %}
 <div
-  x-data="{ theme: localStorage.theme || 'system' }"
-  x-init="$watch('theme', value => {
-    localStorage.theme = value;
-    document.documentElement.classList.toggle(
-      'dark',
-      value === 'dark' || (value === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-    );
+  x-data="{ dark: document.documentElement.classList.contains('dark') }"
+  x-init="$watch('dark', value => {
+    localStorage.theme = value ? 'dark' : 'light';
+    document.documentElement.classList.toggle('dark', value);
   })"
 >
-  <label class="sr-only" for="theme-select">Tema</label>
-  <select
-    id="theme-select"
-    x-model="theme"
-    class="rounded-md border border-input bg-transparent px-2 py-1 text-sm"
+  <button
+    type="button"
+    @click="dark = !dark"
+    class="rounded-md p-2 text-sm hover:bg-accent hover:text-accent-foreground"
+    :aria-label="dark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'"
+    :title="dark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'"
   >
-    <option value="system">Sistema</option>
-    <option value="light">Claro</option>
-    <option value="dark">Oscuro</option>
-  </select>
+    <span x-show="dark" x-cloak aria-hidden="true">☀️</span>
+    <span x-show="!dark" x-cloak aria-hidden="true">🌙</span>
+  </button>
 </div>
