@@ -14,15 +14,39 @@ function chatPage(conversationId) {
       this.$nextTick(() => this.$refs.input?.focus());
 
       window.addEventListener('keydown', (event) => {
-        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        const mod = event.metaKey || event.ctrlKey;
+        const key = event.key.toLowerCase();
+        if (mod && key === 'k') {
           event.preventDefault();
           document.querySelector('aside form[action$="/nueva/"]')?.requestSubmit();
+        } else if (mod && key === '/') {
+          event.preventDefault();
+          this.$refs.input?.focus();
+        } else if (mod && key === 'enter' && document.activeElement === this.$refs.input) {
+          // Enter solo (sin Shift) ya envía — este es un atajo alternativo
+          // explícito (plan.md, Fase 5) para quien prefiere Cmd/Ctrl+Enter.
+          event.preventDefault();
+          this.send();
         }
       });
+
+      // Prompt sugerido desde el estado vacío (chat/empty.html): la vista
+      // `new_conversation` redirige acá con `?draft=...` en vez de crear el
+      // mensaje server-side, para reusar el mismo flujo de streaming que un
+      // mensaje tipeado a mano.
+      const params = new URLSearchParams(window.location.search);
+      const draftFromEmptyState = params.get('draft');
+      if (draftFromEmptyState) {
+        history.replaceState(null, '', window.location.pathname);
+        this.draft = draftFromEmptyState;
+        this.$nextTick(() => this.send());
+      }
     },
 
     renderExistingMarkdown() {
-      this.$refs.messageList.querySelectorAll('.markdown-body').forEach((el) => {
+      // :not([data-rendered]) — ver el comentario en renderMarkdown() sobre
+      // por qué esto tiene que ser idempotente.
+      this.$refs.messageList.querySelectorAll('.markdown-body:not([data-rendered])').forEach((el) => {
         try {
           this.renderMarkdown(el);
         } catch (renderError) {
@@ -32,8 +56,20 @@ function chatPage(conversationId) {
     },
 
     renderMarkdown(el) {
-      const raw = el.dataset.raw ?? el.textContent;
-      el.innerHTML = marked.parse(raw);
+      // Guardar el markdown crudo ANTES de tocar innerHTML (si todavía no
+      // está guardado) es necesario para que esto sea idempotente: si por
+      // lo que sea se llama dos veces sobre el mismo elemento, una segunda
+      // pasada que lea `el.textContent` ya NO vería el markdown crudo, sino
+      // el texto plano del HTML ya renderizado (sin los `**`/`` ` ``/etc.,
+      // ya convertidos a <strong>/<code>/<ol> reales) — y volver a mandar
+      // ESO a marked.parse() aplana todo el formato a un solo <p>. Con el
+      // raw ya guardado en dataset.raw, una repetición es un no-op inocuo
+      // (mismo resultado), en vez de destructiva.
+      if (!el.dataset.raw) {
+        el.dataset.raw = el.textContent;
+      }
+      el.innerHTML = marked.parse(el.dataset.raw);
+      el.dataset.rendered = 'true';
       el.querySelectorAll('pre code').forEach((block) => {
         hljs.highlightElement(block);
         this.addCopyButton(block);
@@ -62,7 +98,7 @@ function chatPage(conversationId) {
       // selección manual de todo el bloque de código arrastra "Copiar" al
       // final del texto copiado.
       button.className =
-        'copy-btn absolute right-2 top-2 rounded bg-slate-700 px-2 py-1 text-xs text-white select-none hover:bg-slate-600';
+        'copy-btn absolute right-2 top-2 rounded-md bg-slate-700 px-2 py-1 text-xs text-white select-none hover:bg-slate-600';
       button.addEventListener('click', () => {
         // textContent en vez de innerText: no depende de layout/render
         // (innerText es sensible a CSS y puede comportarse distinto entre
@@ -94,8 +130,19 @@ function chatPage(conversationId) {
       const bubble = document.createElement('div');
       bubble.className =
         role === 'user'
-          ? 'max-w-2xl whitespace-pre-wrap rounded-lg bg-slate-900 px-4 py-2 text-white dark:bg-slate-100 dark:text-slate-900'
-          : 'markdown-body max-w-2xl whitespace-pre-wrap rounded-lg bg-slate-100 px-4 py-2 dark:bg-slate-800';
+          ? 'max-w-2xl whitespace-pre-wrap rounded-lg bg-primary px-4 py-2 text-primary-foreground'
+          : 'markdown-body max-w-2xl whitespace-pre-wrap rounded-lg bg-muted px-4 py-2';
+      if (role === 'assistant') {
+        // Skeleton loader ("pensando…") mientras se espera el primer token
+        // del stream (plan.md, Fase 5) — `send()` lo saca en cuanto llega
+        // el primer chunk de texto.
+        bubble.innerHTML =
+          '<span class="inline-flex gap-1" data-thinking>' +
+          '<span class="skeleton h-2 w-2 rounded-full bg-muted-foreground"></span>' +
+          '<span class="skeleton h-2 w-2 rounded-full bg-muted-foreground" style="animation-delay: 0.2s"></span>' +
+          '<span class="skeleton h-2 w-2 rounded-full bg-muted-foreground" style="animation-delay: 0.4s"></span>' +
+          '</span>';
+      }
       wrapper.appendChild(bubble);
       this.$refs.messageList.appendChild(wrapper);
       return bubble;
@@ -106,9 +153,9 @@ function chatPage(conversationId) {
       wrapper.className = 'mb-4 flex justify-start';
       wrapper.dataset.toolUseId = data.id;
       const details = document.createElement('details');
-      details.className = 'max-w-2xl rounded border border-slate-200 px-3 py-2 text-sm dark:border-slate-800';
+      details.className = 'max-w-2xl rounded-md border border-border px-3 py-2 text-sm';
       const summary = document.createElement('summary');
-      summary.className = 'cursor-pointer select-none text-slate-600 dark:text-slate-300';
+      summary.className = 'cursor-pointer select-none text-muted-foreground';
       summary.textContent = `🔧 ${data.name}`;
       const args = document.createElement('pre');
       args.className = 'mt-2 overflow-x-auto text-xs';
@@ -125,7 +172,7 @@ function chatPage(conversationId) {
       if (!wrapper) return;
       const summary = wrapper.querySelector('summary');
       if (data.is_error) {
-        summary.innerHTML += ' <span class="text-red-600 dark:text-red-400">· error</span>';
+        summary.innerHTML += ' <span class="text-destructive">· error</span>';
       }
     },
 

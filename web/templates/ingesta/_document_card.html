@@ -1,7 +1,7 @@
 {% load ingesta_extras %}
 <div
   id="document-{{ document.id }}"
-  class="rounded-lg border border-slate-200 p-4 dark:border-slate-800"
+  class="rounded-lg border border-border p-4 shadow-sm"
   {% if document.status == "pending" or document.status == "processing" %}
   hx-get="{% url 'ingesta:status' document.id %}"
   hx-trigger="every 2s"
@@ -14,11 +14,11 @@
       {{ document.get_status_display }}
     </span>
   </div>
-  <p class="text-xs text-slate-500 dark:text-slate-400">
+  <p class="text-xs text-muted-foreground">
     {{ document.mime_type|default:"—" }} · {{ document.chunk_count }} chunk{{ document.chunk_count|pluralize }}
   </p>
   {% if document.status == "failed" and document.error_message %}
-    <p class="mt-1 truncate text-xs text-red-600 dark:text-red-400" title="{{ document.error_message }}">
+    <p class="mt-1 truncate text-xs text-destructive" title="{{ document.error_message }}">
       {{ document.error_message }}
     </p>
   {% endif %}
@@ -29,7 +29,7 @@
     onsubmit="return confirm('¿Borrar {{ document.filename|escapejs }}?');"
   >
     {% csrf_token %}
-    <button type="submit" class="text-xs text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400">
+    <button type="submit" class="text-xs text-muted-foreground hover:text-destructive">
       Borrar
     </button>
   </form>

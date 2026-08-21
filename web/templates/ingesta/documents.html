@@ -9,14 +9,14 @@
 
   <div
     class="mb-6 flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-10 text-center transition-colors"
-    :class="dragging ? 'border-slate-500 bg-slate-50 dark:border-slate-400 dark:bg-slate-800' : 'border-slate-300 dark:border-slate-700'"
+    :class="dragging ? 'border-ring bg-accent' : 'border-border'"
     @dragover.prevent="dragging = true"
     @dragleave.prevent="dragging = false"
     @drop.prevent="dragging = false; handleFiles($event.dataTransfer.files)"
   >
-    <p class="mb-3 text-slate-500 dark:text-slate-400">Arrastrá archivos acá, o</p>
+    <p class="mb-3 text-muted-foreground">Arrastra archivos aquí, o</p>
     <label
-      class="cursor-pointer rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:opacity-90 dark:bg-slate-100 dark:text-slate-900"
+      class="cursor-pointer rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
     >
       Elegir archivos
       <input
@@ -27,24 +27,24 @@
         accept=".pdf,.docx,.pptx,.xlsx,.csv,.md,.txt,.png,.jpg,.jpeg"
       >
     </label>
-    <p class="mt-3 text-xs text-slate-400">PDF, DOCX, PPTX, XLSX, CSV, MD, TXT, PNG, JPG</p>
+    <p class="mt-3 text-xs text-muted-foreground">PDF, DOCX, PPTX, XLSX, CSV, MD, TXT, PNG, JPG</p>
   </div>
 
   <div class="mb-6 space-y-2" x-show="uploading.length > 0" x-cloak>
     <template x-for="item in uploading" :key="item.key">
-      <div class="rounded border border-slate-200 p-3 text-sm dark:border-slate-800">
+      <div class="rounded-md border border-border p-3 text-sm">
         <div class="mb-1 flex justify-between gap-2">
           <span class="truncate" x-text="item.name"></span>
           <span
             class="shrink-0"
-            :class="item.error ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'"
+            :class="item.error ? 'text-destructive' : 'text-muted-foreground'"
             x-text="item.error ? item.error : item.progress + '%'"
           ></span>
         </div>
-        <div class="h-1.5 w-full overflow-hidden rounded bg-slate-200 dark:bg-slate-800">
+        <div class="h-1.5 w-full overflow-hidden rounded-full bg-muted">
           <div
-            class="h-full rounded bg-slate-900 transition-all dark:bg-slate-100"
-            :class="item.error ? '!bg-red-500' : ''"
+            class="h-full rounded-full bg-primary transition-all"
+            :class="item.error ? '!bg-destructive' : ''"
             :style="`width: ${item.progress}%`"
           ></div>
         </div>
@@ -56,9 +56,9 @@
     {% for document in documents %}
       {% include "ingesta/_document_card.html" %}
     {% empty %}
-      <p data-empty-state class="col-span-full text-slate-500 dark:text-slate-400">
-        Todavía no subiste ningún documento.
-      </p>
+      <div data-empty-state class="col-span-full rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+        Todavía no has subido ningún documento. Arrastra uno arriba para empezar a indexarlo.
+      </div>
     {% endfor %}
   </div>
 </div>

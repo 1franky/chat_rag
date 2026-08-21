@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from datetime import timedelta
+from urllib.parse import urlencode
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import (
     Http404,
@@ -14,11 +16,19 @@ from django.http import (
     StreamingHttpResponse,
 )
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
 from . import agent
 from .models import Conversation, Message
+
+SUGGESTED_PROMPTS = [
+    "¿Qué documentos tienes indexados ahora mismo?",
+    "Resume los puntos clave de mis documentos más recientes",
+    "Ayúdame a redactar un resumen ejecutivo con base en mis documentos",
+    "Explícame, paso a paso, cómo funciona este proyecto",
+]
 
 
 @login_required
@@ -26,7 +36,7 @@ def home(request: HttpRequest) -> HttpResponse:
     """`/chat/`: a la conversación más reciente, o al estado vacío si no hay ninguna."""
     conversation = Conversation.objects.filter(user=request.user).first()
     if conversation is None:
-        return render(request, "chat/empty.html")
+        return render(request, "chat/empty.html", {"suggested_prompts": SUGGESTED_PROMPTS})
     return redirect("chat:detail", conversation_id=conversation.id)
 
 
@@ -34,17 +44,33 @@ def home(request: HttpRequest) -> HttpResponse:
 @require_POST
 def new_conversation(request: HttpRequest) -> HttpResponse:
     conversation = Conversation.objects.create(user=request.user)
-    return redirect("chat:detail", conversation_id=conversation.id)
+    detail_url = reverse("chat:detail", args=[conversation.id])
+
+    # Prompt sugerido del estado vacío (chat/empty.html): se manda como
+    # querystring y el JS de la página lo autoenvía al cargar (ver
+    # static/js/chat.js) — reusa el mismo flujo de streaming que un mensaje
+    # tipeado a mano en vez de duplicar lógica de creación de mensajes acá.
+    prompt = request.POST.get("prompt", "").strip()
+    if prompt:
+        detail_url = f"{detail_url}?{urlencode({'draft': prompt})}"
+
+    return redirect(detail_url)
 
 
 @login_required
 def conversation_detail(request: HttpRequest, conversation_id) -> HttpResponse:
     conversation = _get_conversation_or_404(request, conversation_id)
-    messages = conversation.messages.all()
+    chat_messages = conversation.messages.all()
     return render(
         request,
         "chat/conversation.html",
-        {"conversation": conversation, "chat_messages": messages},
+        {
+            "conversation": conversation,
+            "chat_messages": chat_messages,
+            # Solo se usan si chat_messages está vacío (conversación recién
+            # creada) — ver el bloque de estado vacío en conversation.html.
+            "suggested_prompts": SUGGESTED_PROMPTS,
+        },
     )
 
 
@@ -160,6 +186,7 @@ async def stream_message(request: HttpRequest, conversation_id) -> HttpResponse:
 def delete_conversation(request: HttpRequest, conversation_id) -> HttpResponse:
     conversation = _get_conversation_or_404(request, conversation_id)
     conversation.delete()
+    messages.success(request, "Conversación borrada.")
     return redirect("chat:home")
 
 

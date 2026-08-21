@@ -4,8 +4,121 @@
    no por prefers-color-scheme directo, para poder ofrecer "sistema/claro/oscuro". */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Inter self-hosted (variable font: un solo archivo cubre weight 100-900),
+   en vez de Google Fonts (plan.md, Fase 5) — evita la request a un host
+   externo en cada carga. Archivos bajados de https://github.com/rsms/inter
+   (SIL OFL, ver static/fonts/INTER-LICENSE.txt). */
+@font-face {
+  font-family: "InterVariable";
+  src: url("../fonts/InterVariable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "InterVariable";
+  src: url("../fonts/InterVariable-Italic.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* Tokens de diseño estilo shadcn: colores semánticos en vez de slate-*
+   hardcodeado en cada template, para poder retocar la paleta en un solo
+   lugar. Valores elegidos para calzar con lo que ya había (slate + rojo
+   para destructive) y no pegar un salto visual. */
+:root {
+  --background: #ffffff;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --border: #e2e8f0;
+  --input: #cbd5e1;
+  --ring: #94a3b8;
+  --primary: #0f172a;
+  --primary-foreground: #ffffff;
+  --accent: #e2e8f0;
+  --accent-foreground: #0f172a;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --sidebar: #f8fafc;
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: #0f172a;
+  --foreground: #f1f5f9;
+  --card: #0f172a;
+  --card-foreground: #f1f5f9;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+  --border: #1e293b;
+  --input: #334155;
+  --ring: #64748b;
+  --primary: #f1f5f9;
+  --primary-foreground: #0f172a;
+  --accent: #1e293b;
+  --accent-foreground: #f1f5f9;
+  --destructive: #f87171;
+  --destructive-foreground: #450a0a;
+  --sidebar: #020617;
+}
+
+/* `inline`: los valores de la derecha son variables que cambian con .dark,
+   así que Tailwind no puede inlinearlas como constantes — tiene que emitir
+   `var(--background)` etc. en las utilities generadas (bg-background,
+   text-foreground, border-border, ...). */
+@theme inline {
+  --font-sans: "InterVariable", ui-sans-serif, system-ui, sans-serif;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-sidebar: var(--sidebar);
+
+  --radius-sm: calc(var(--radius) - 0.25rem);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 0.25rem);
+}
+
 /* Alpine no trae este CSS: sin esto, x-cloak no oculta nada hasta que
    Alpine termina de inicializar (flash de contenido). */
 [x-cloak] {
   display: none !important;
+}
+
+/* View Transitions API nativa entre navegaciones same-origin (MPA: cada
+   click es un document load normal, no hay router cliente) — el browser
+   hace un cross-fade solo, sin JS. Soportado en navegadores Chromium; en
+   el resto es un no-op y la navegación se ve como siempre (plan.md, Fase 5). */
+@view-transition {
+  navigation: auto;
+}
+
+/* Skeleton loaders (plan.md, Fase 5): shimmer sutil para placeholders de
+   carga (lista de conversaciones/docs, burbuja "pensando" del chat). */
+@keyframes skeleton-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+.skeleton {
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
 }

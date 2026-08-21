@@ -1,26 +1,26 @@
 {% load chat_extras %}
 {% if message.role == "user" %}
   <div class="mb-4 flex justify-end">
-    <div class="max-w-2xl whitespace-pre-wrap rounded-lg bg-slate-900 px-4 py-2 text-white dark:bg-slate-100 dark:text-slate-900">{{ message.content }}</div>
+    <div class="max-w-2xl whitespace-pre-wrap rounded-lg bg-primary px-4 py-2 text-primary-foreground">{{ message.content }}</div>
   </div>
 {% elif message.role == "assistant" %}
   <div class="mb-4 flex justify-start">
-    <div class="markdown-body max-w-2xl rounded-lg bg-slate-100 px-4 py-2 dark:bg-slate-800{% if message.is_error %} border border-red-400 dark:border-red-700{% endif %}">{{ message.content }}</div>
+    <div class="markdown-body max-w-2xl rounded-lg bg-muted px-4 py-2{% if message.is_error %} border border-destructive{% endif %}">{{ message.content }}</div>
   </div>
 {% elif message.role == "tool" %}
   <div class="mb-4 flex justify-start">
-    <details class="max-w-2xl rounded border border-slate-200 px-3 py-2 text-sm dark:border-slate-800">
-      <summary class="cursor-pointer select-none text-slate-600 dark:text-slate-300">
+    <details class="max-w-2xl rounded-md border border-border px-3 py-2 text-sm">
+      <summary class="cursor-pointer select-none text-muted-foreground">
         🔧 {{ message.tool_name }}
-        {% if message.is_error %}<span class="text-red-600 dark:text-red-400">· error</span>{% endif %}
+        {% if message.is_error %}<span class="text-destructive">· error</span>{% endif %}
       </summary>
       {% if message.tool_args %}
-        <p class="mt-2 text-xs font-medium text-slate-400">Argumentos</p>
+        <p class="mt-2 text-xs font-medium text-muted-foreground">Argumentos</p>
         <pre class="overflow-x-auto text-xs">{{ message.tool_args|to_json }}</pre>
       {% endif %}
       {% if message.tool_result %}
-        <p class="mt-2 text-xs font-medium text-slate-400">Resultado</p>
-        <pre class="overflow-x-auto text-xs text-slate-500 dark:text-slate-400">{{ message.tool_result|to_json }}</pre>
+        <p class="mt-2 text-xs font-medium text-muted-foreground">Resultado</p>
+        <pre class="overflow-x-auto text-xs text-muted-foreground">{{ message.tool_result|to_json }}</pre>
       {% endif %}
     </details>
   </div>

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Página no encontrada · chat_rag{% endblock %}
+
+{% block content %}
+<div class="flex h-full flex-col items-center justify-center text-center">
+  <p class="mb-2 text-sm font-medium text-muted-foreground">404</p>
+  <h1 class="mb-2 text-2xl font-semibold">No encontramos esta página</h1>
+  <p class="mb-6 max-w-md text-muted-foreground">
+    La URL no corresponde a nada — puede que el enlace esté roto o que la conversación/documento ya no exista.
+  </p>
+  <a
+    href="{% url 'chat:home' %}"
+    class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+  >
+    Volver al chat
+  </a>
+</div>
+{% endblock %}
