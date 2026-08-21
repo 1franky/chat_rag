@@ -16,7 +16,7 @@ import sqlite3
 import uuid
 from pathlib import Path
 
-from rag_shared.models import DocumentMeta, DocumentStatus
+from rag_shared.models import CollectionMeta, DocumentMeta, DocumentStatus
 
 DB_PATH = Path(os.environ.get("DJANGO_SQLITE_PATH", "/data/sqlite/db.sqlite3"))
 
@@ -36,10 +36,12 @@ def list_documents() -> list[DocumentMeta]:
 
     with _connect() as conn:
         rows = conn.execute(
-            "SELECT id, filename, mime_type, status, chunk_count, uploaded_at, error_message "
-            "FROM ingesta_document "
-            "WHERE deleted_at IS NULL "
-            "ORDER BY uploaded_at DESC"
+            "SELECT d.id, d.filename, d.mime_type, d.status, d.chunk_count, d.uploaded_at, "
+            "       d.error_message, c.name AS collection_name "
+            "FROM ingesta_document d "
+            "LEFT JOIN ingesta_collection c ON c.id = d.collection_id "
+            "WHERE d.deleted_at IS NULL "
+            "ORDER BY d.uploaded_at DESC"
         ).fetchall()
 
     return [
@@ -56,6 +58,39 @@ def list_documents() -> list[DocumentMeta]:
             chunk_count=row["chunk_count"],
             uploaded_at=row["uploaded_at"],
             error_message=row["error_message"] or None,
+            collection=row["collection_name"],
         )
         for row in rows
     ]
+
+
+def list_collections() -> list[CollectionMeta]:
+    """Colecciones existentes (plan-v2.md, Fase 10), con cuántos documentos
+    activos tiene cada una — para que `rag_list_collections` le muestre a
+    Claude algo más útil que solo el nombre."""
+    if not DB_PATH.exists():
+        return []
+
+    with _connect() as conn:
+        rows = conn.execute(
+            "SELECT c.name AS name, COUNT(d.id) AS document_count "
+            "FROM ingesta_collection c "
+            "LEFT JOIN ingesta_document d ON d.collection_id = c.id AND d.deleted_at IS NULL "
+            "GROUP BY c.id, c.name "
+            "ORDER BY c.name"
+        ).fetchall()
+
+    return [CollectionMeta(name=row["name"], document_count=row["document_count"]) for row in rows]
+
+
+def resolve_collection_id(name: str) -> str | None:
+    """El id (con guiones, formato Qdrant) de la colección con ese nombre
+    exacto, o None si no existe — para que `rag_search(collection=...)`
+    pueda resolver el nombre que le pasa Claude al filtro real de Qdrant."""
+    if not DB_PATH.exists():
+        return None
+
+    with _connect() as conn:
+        row = conn.execute("SELECT id FROM ingesta_collection WHERE name = ?", (name,)).fetchone()
+
+    return str(uuid.UUID(row["id"])) if row else None

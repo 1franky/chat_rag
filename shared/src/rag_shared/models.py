@@ -56,6 +56,16 @@ class DocumentMeta(BaseModel):
     chunk_count: int = 0
     uploaded_at: datetime
     error_message: str | None = None
+    collection: str | None = None
+
+
+class CollectionMeta(BaseModel):
+    """Una colección de documentos, para `rag_list_collections` (plan-v2.md,
+    Fase 10) — así Claude sabe qué colecciones existen antes de decidir si
+    acotar `rag_search` a una."""
+
+    name: str
+    document_count: int = 0
 
 
 class SearchResult(BaseModel):

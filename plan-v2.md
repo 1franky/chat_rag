@@ -128,29 +128,29 @@ y poder acotar la búsqueda RAG a un subconjunto ("buscá solo en la
 colección Contratos 2026").
 
 Tareas:
-- [ ] Modelo `ingesta/models.py::Collection`: `id` (UUID), `name`,
+- [x] Modelo `ingesta/models.py::Collection`: `id` (UUID), `name`,
       `created_at`, `updated_at`. Sin owner (uso 100% personal, igual que
       `Document`).
-- [ ] `Document.collection` — FK opcional (`null=True, blank=True,
+- [x] `Document.collection` — FK opcional (`null=True, blank=True,
       on_delete=models.SET_NULL`). Un documento pertenece a una colección
       como mucho, o ninguna — modelo de carpeta simple, no etiquetas
       múltiples.
-- [ ] Migración.
-- [ ] Vistas CRUD de colecciones (crear, renombrar, borrar). Borrar una
+- [x] Migración.
+- [x] Vistas CRUD de colecciones (crear, renombrar, borrar). Borrar una
       colección NO borra sus documentos, solo los deja sin colección.
-- [ ] `/documentos/`: filtro/agrupación por colección (tabs o sidebar:
+- [x] `/documentos/`: filtro/agrupación por colección (tabs o sidebar:
       "Todos" + cada colección).
-- [ ] Al subir un documento: selector de colección (default "sin
+- [x] Al subir un documento: selector de colección (default "sin
       colección"). Poder mover un documento a otra colección después.
-- [ ] Payload de cada chunk en Qdrant (`vector_store._build_points`) gana
+- [x] Payload de cada chunk en Qdrant (`vector_store._build_points`) gana
       `collection_id`.
-- [ ] `vector_store.search()` acepta un filtro opcional por colección
+- [x] `vector_store.search()` acepta un filtro opcional por colección
       (`models.Filter` con `FieldCondition` sobre `collection_id`).
-- [ ] `rag_search` (rag-mcp/server.py) gana un parámetro opcional
+- [x] `rag_search` (rag-mcp/server.py) gana un parámetro opcional
       `collection: str | None`.
-- [ ] Tool nueva `rag_list_collections` — para que Claude sepa qué
+- [x] Tool nueva `rag_list_collections` — para que Claude sepa qué
       colecciones existen y decida cuándo acotar la búsqueda.
-- [ ] `chat/agent.py::SYSTEM_PROMPT`: mencionar que existen colecciones y
+- [x] `chat/agent.py::SYSTEM_PROMPT`: mencionar que existen colecciones y
       cuándo usarlas.
 
 **Criterio de aceptación**: creo una colección, subo documentos ahí, le

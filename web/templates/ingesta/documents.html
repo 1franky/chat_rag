@@ -4,8 +4,72 @@
 {% block title %}Documentos · chat_rag{% endblock %}
 
 {% block content %}
-<div x-data="documentsPage()">
+<div x-data="documentsPage('{{ active_collection.id|default:'' }}')">
   <h1 class="mb-4 text-2xl font-semibold">Documentos</h1>
+
+  {% comment %}
+    Tabs de colecciones (plan-v2.md, Fase 10): "Todos" + "Sin colección" +
+    cada Collection. Renombrar/borrar con el mismo patrón de <form> clásico
+    + confirm()/prompt() que ya usa el resto del proyecto (borrar
+    documento/conversación) — no hace falta JS nuevo para esto.
+  {% endcomment %}
+  <div class="mb-4 flex flex-wrap items-center gap-2 border-b border-border pb-3">
+    <a
+      href="{% url 'ingesta:list' %}"
+      class="rounded-md px-3 py-1.5 text-sm {% if not active_collection and not filter_none %}bg-accent text-accent-foreground{% else %}text-muted-foreground hover:bg-accent hover:text-accent-foreground{% endif %}"
+    >
+      Todos
+    </a>
+    <a
+      href="{% url 'ingesta:list' %}?coleccion=sin-coleccion"
+      class="rounded-md px-3 py-1.5 text-sm {% if filter_none %}bg-accent text-accent-foreground{% else %}text-muted-foreground hover:bg-accent hover:text-accent-foreground{% endif %}"
+    >
+      Sin colección
+    </a>
+    {% for collection in collections %}
+      <div class="flex items-center rounded-md {% if active_collection.id == collection.id %}bg-accent text-accent-foreground{% endif %}">
+        <a
+          href="{% url 'ingesta:list' %}?coleccion={{ collection.id }}"
+          class="rounded-md py-1.5 pl-3 text-sm {% if active_collection.id != collection.id %}text-muted-foreground hover:bg-accent hover:text-accent-foreground{% endif %}"
+        >
+          {{ collection.name }}
+        </a>
+        <form
+          method="post"
+          action="{% url 'ingesta:collection_rename' collection.id %}"
+          onsubmit="var name = prompt('Nuevo nombre de la colección:', '{{ collection.name|escapejs }}'); if (!name || !name.trim()) return false; this.name.value = name.trim(); return true;"
+        >
+          {% csrf_token %}
+          <input type="hidden" name="name">
+          <button type="submit" class="px-1 py-1.5 text-xs text-muted-foreground hover:text-foreground" title="Renombrar «{{ collection.name }}»" aria-label="Renombrar «{{ collection.name }}»">
+            ✎
+          </button>
+        </form>
+        <form
+          method="post"
+          action="{% url 'ingesta:collection_delete' collection.id %}"
+          onsubmit="return confirm('¿Borrar la colección «{{ collection.name|escapejs }}»? Los documentos no se borran, solo quedan sin colección.');"
+        >
+          {% csrf_token %}
+          <button type="submit" class="px-1 py-1.5 pr-2 text-xs text-muted-foreground hover:text-destructive" title="Borrar «{{ collection.name }}»" aria-label="Borrar «{{ collection.name }}»">
+            ✕
+          </button>
+        </form>
+      </div>
+    {% endfor %}
+    <form method="post" action="{% url 'ingesta:collection_create' %}" class="flex items-center gap-1">
+      {% csrf_token %}
+      <input
+        type="text"
+        name="name"
+        placeholder="Nueva colección…"
+        class="w-36 rounded-md border border-input bg-transparent px-2 py-1 text-sm"
+      >
+      <button type="submit" class="rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground">
+        + Crear
+      </button>
+    </form>
+  </div>
 
   <div
     class="mb-6 flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-10 text-center transition-colors"
@@ -28,6 +92,22 @@
       >
     </label>
     <p class="mt-3 text-xs text-muted-foreground">PDF, DOCX, PPTX, XLSX, CSV, MD, TXT, PNG, JPG</p>
+    {% if collections %}
+      {% comment %}
+        Colección destino de la subida (plan-v2.md, Fase 10): arranca en la
+        colección activa si estás viendo una (documentsPage recibe su id),
+        así subir mientras mirás "Contratos 2026" cae ahí por default.
+      {% endcomment %}
+      <label class="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+        Subir a:
+        <select x-model="uploadCollection" class="rounded-md border border-input bg-transparent px-2 py-1 text-xs text-foreground">
+          <option value="">Sin colección</option>
+          {% for collection in collections %}
+            <option value="{{ collection.id }}">{{ collection.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    {% endif %}
   </div>
 
   <div class="mb-6 space-y-2" x-show="uploading.length > 0" x-cloak>
@@ -57,7 +137,13 @@
       {% include "ingesta/_document_card.html" %}
     {% empty %}
       <div data-empty-state class="col-span-full rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
-        Todavía no has subido ningún documento. Arrastra uno arriba para empezar a indexarlo.
+        {% if active_collection %}
+          No hay documentos en «{{ active_collection.name }}» todavía.
+        {% elif filter_none %}
+          No hay documentos sin colección.
+        {% else %}
+          Todavía no has subido ningún documento. Arrastra uno arriba para empezar a indexarlo.
+        {% endif %}
       </div>
     {% endfor %}
   </div>

@@ -46,7 +46,9 @@ def _point_id(document_id: str, chunk_index: int) -> str:
     return str(uuid.uuid5(_POINT_ID_NAMESPACE, f"{document_id}:{chunk_index}"))
 
 
-def _build_points(document_id: str, chunks: list[Chunk], vectors: list[list[float]]) -> list[models.PointStruct]:
+def _build_points(
+    document_id: str, chunks: list[Chunk], vectors: list[list[float]], collection_id: str | None = None
+) -> list[models.PointStruct]:
     if len(chunks) != len(vectors):
         raise ValueError("chunks y vectors deben tener la misma longitud")
     return [
@@ -59,6 +61,11 @@ def _build_points(document_id: str, chunks: list[Chunk], vectors: list[list[floa
                 "text": chunk.text,
                 "page": chunk.page,
                 "section": chunk.section,
+                # None para documentos sin colección (plan-v2.md, Fase 10) —
+                # un FieldCondition de collection_id nunca matchea None, así
+                # que una búsqueda acotada a una colección los deja afuera
+                # correctamente sin necesitar lógica aparte.
+                "collection_id": collection_id,
             },
         )
         for chunk, vector in zip(chunks, vectors, strict=True)
@@ -117,11 +124,21 @@ async def ensure_collection() -> bool:
     return True
 
 
-async def search(query_vector: list[float], top_k: int = 5) -> list[Chunk]:
-    """Busca los `top_k` chunks más similares al vector de query."""
+async def search(query_vector: list[float], top_k: int = 5, collection_id: str | None = None) -> list[Chunk]:
+    """Busca los `top_k` chunks más similares al vector de query.
+
+    `collection_id` (plan-v2.md, Fase 10) acota la búsqueda a una sola
+    colección de documentos; sin especificar, busca en todo lo indexado.
+    """
+    query_filter = None
+    if collection_id is not None:
+        query_filter = models.Filter(
+            must=[models.FieldCondition(key="collection_id", match=models.MatchValue(value=collection_id))]
+        )
     results = await get_client().query_points(
         collection_name=COLLECTION_NAME,
         query=query_vector,
+        query_filter=query_filter,
         limit=top_k,
     )
     return [_chunk_from_point(point, score=point.score) for point in results.points]
@@ -167,12 +184,28 @@ def ensure_collection_sync() -> bool:
     return True
 
 
-def upsert_chunks_sync(document_id: str, chunks: list[Chunk], vectors: list[list[float]]) -> None:
+def upsert_chunks_sync(
+    document_id: str, chunks: list[Chunk], vectors: list[list[float]], collection_id: str | None = None
+) -> None:
     """Guarda (o pisa, si ya existían) los puntos de un documento."""
-    points = _build_points(document_id, chunks, vectors)
+    points = _build_points(document_id, chunks, vectors, collection_id=collection_id)
     get_sync_client().upsert(collection_name=COLLECTION_NAME, points=points)
 
 
 def delete_document_sync(document_id: str) -> None:
     """Borra todos los chunks de un documento (filtro por payload)."""
     get_sync_client().delete(collection_name=COLLECTION_NAME, points_selector=_delete_document_filter(document_id))
+
+
+def set_document_collection_sync(document_id: str, collection_id: str | None) -> None:
+    """Actualiza el `collection_id` de todos los chunks YA indexados de un
+    documento (al moverlo a otra colección desde la UI, plan-v2.md Fase 10)
+    — `set_payload` filtrado por `document_id`, sin re-embeber ni volver a
+    subir vectores."""
+    get_sync_client().set_payload(
+        collection_name=COLLECTION_NAME,
+        payload={"collection_id": collection_id},
+        points=models.Filter(
+            must=[models.FieldCondition(key="document_id", match=models.MatchValue(value=document_id))]
+        ),
+    )

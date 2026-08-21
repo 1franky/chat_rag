@@ -1,10 +1,13 @@
 // Drag & drop + subida con barra de progreso por archivo (plan.md, Fase 3).
 // Usa XMLHttpRequest (no fetch) porque es la única API con eventos de
 // progreso de subida (`upload.onprogress`).
-function documentsPage() {
+function documentsPage(initialCollectionId) {
   return {
     dragging: false,
     uploading: [],
+    // Colección destino de la subida (plan-v2.md, Fase 10): arranca en la
+    // colección activa si venís mirando una (ver documents.html).
+    uploadCollection: initialCollectionId || '',
 
     handleFiles(fileList) {
       Array.from(fileList).forEach((file) => this.uploadFile(file));
@@ -21,6 +24,7 @@ function documentsPage() {
 
       const formData = new FormData();
       formData.append('file', file);
+      if (this.uploadCollection) formData.append('collection', this.uploadCollection);
 
       const xhr = new XMLHttpRequest();
       xhr.open('POST', '/documentos/subir/');
