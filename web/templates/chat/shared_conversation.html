@@ -1,0 +1,45 @@
+{% load static %}
+{% comment %}
+  A propósito NO extiende base.html (Fase 11, plan-v2.md): esta es la vista
+  PÚBLICA de solo lectura de una conversación compartida — sin sidebar, sin
+  composer, sin botón de exportar/borrar/compartir ni nada que exponga el
+  resto de la cuenta. Mismo criterio que templates/500.html (Fase 5:
+  standalone a propósito), aunque acá sí se reusa Tailwind/tokens de tema
+  (a diferencia de 500.html, que evita depender de que los estáticos estén
+  bien servidos) porque esta página reusa chat/_message.html tal cual.
+{% endcomment %}
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ conversation.title|default:"Conversación compartida" }} · chat_rag</title>
+  {% include "partials/theme_init.html" %}
+  <link rel="stylesheet" href="{% static 'css/tailwind.css' %}">
+  <link rel="stylesheet" href="{% static 'css/vendor/highlight-github-dark.min.css' %}">
+</head>
+<body class="h-full bg-background font-sans text-foreground">
+  <div class="mx-auto flex h-full max-w-2xl flex-col">
+    <header class="border-b border-border px-4 py-3">
+      <p class="text-xs text-muted-foreground">Conversación compartida de solo lectura</p>
+      <h1 class="truncate text-sm font-medium">{{ conversation.title|default:"Conversación" }}</h1>
+    </header>
+    <div class="flex-1 overflow-y-auto px-4 py-6">
+      {% for message in chat_messages %}
+        {% include "chat/_message.html" %}
+      {% empty %}
+        <p class="text-sm text-muted-foreground">Esta conversación todavía no tiene mensajes.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <script src="{% static 'js/vendor/marked.min.js' %}"></script>
+  {% comment %}
+    Bundle completo de highlight.js (mismo comentario que conversation.html):
+    los archivos sueltos por lenguaje son CommonJS, rotos como <script>
+    plano.
+  {% endcomment %}
+  <script src="{% static 'js/vendor/highlight/highlight.min.js' %}"></script>
+  <script src="{% static 'js/shared_conversation.js' %}"></script>
+</body>
+</html>

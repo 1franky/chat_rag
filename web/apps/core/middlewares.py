@@ -8,6 +8,10 @@ EXEMPT_PATH_PREFIXES = (
     "/login/",
     "/static/",
     "/healthz",
+    # Vista pública de solo lectura de una conversación compartida (Fase 11,
+    # plan-v2.md) — la vista misma controla el acceso por token, no por
+    # sesión.
+    "/compartido/",
 )
 
 

@@ -11,4 +11,6 @@ urlpatterns = [
     path("<uuid:conversation_id>/stream/", views.stream_message, name="stream"),
     path("<uuid:conversation_id>/borrar/", views.delete_conversation, name="delete"),
     path("<uuid:conversation_id>/exportar/", views.export_conversation, name="export"),
+    path("<uuid:conversation_id>/compartir/", views.share_conversation, name="share"),
+    path("<uuid:conversation_id>/compartir/revocar/", views.revoke_share, name="revoke_share"),
 ]

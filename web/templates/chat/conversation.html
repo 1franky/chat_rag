@@ -17,8 +17,29 @@
   data-conversation-id="{{ conversation.id }}"
 >
   <div class="flex items-center justify-between border-b border-border px-4 py-2">
-    <h1 class="truncate text-sm font-medium">{{ conversation.title|default:"Nueva conversación" }}</h1>
-    <div class="flex items-center gap-3 text-xs text-muted-foreground">
+    <h1 class="flex min-w-0 items-center gap-2 text-sm font-medium">
+      <span class="truncate">{{ conversation.title|default:"Nueva conversación" }}</span>
+      {% if share_url %}
+        <span
+          class="shrink-0"
+          title="Esta conversación tiene un link para compartir activo"
+          aria-label="Link para compartir activo"
+        >🔗</span>
+      {% endif %}
+    </h1>
+    <div
+      class="flex shrink-0 items-center gap-3 text-xs text-muted-foreground"
+      x-data="shareWidget('{{ conversation.id }}', {% if share_url %}'{{ share_url|escapejs }}'{% else %}null{% endif %})"
+    >
+      {% comment %}
+        Compartir/Copiar link/Revocar (plan-v2.md, Fase 11): 3 controles en
+        vez de un solo toggle, para no perder la forma de volver a copiar
+        un link ya activo (mandárselo a alguien más) sin tener que
+        revocarlo primero.
+      {% endcomment %}
+      <button type="button" @click="share()" x-show="!shareUrl" class="hover:text-foreground">Compartir</button>
+      <button type="button" @click="copyLink()" x-show="shareUrl" x-cloak class="hover:text-foreground">Copiar link</button>
+      <button type="button" @click="revoke()" x-show="shareUrl" x-cloak class="hover:text-destructive">Revocar</button>
       <a href="{% url 'chat:export' conversation.id %}" class="hover:text-foreground">
         Exportar
       </a>

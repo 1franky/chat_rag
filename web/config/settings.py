@@ -48,6 +48,17 @@ CSRF_TRUSTED_ORIGINS = [
     if origin.strip()
 ]
 
+# Link para compartir conversaciones (chat/views.py::share_conversation,
+# plan-v2.md Fase 11): request.build_absolute_uri() adivinaría mal el
+# esquema/host cuando la request entra por el túnel de Cloudflare (TLS
+# termina ahí, Django ve la conexión interna como HTTP plano y no hay
+# SECURE_PROXY_SSL_HEADER configurado) — con esto seteado, el link generado
+# siempre usa el dominio público real sin importar por cuál de las dos vías
+# (túnel Cloudflare o túnel SSH a localhost:3004) se creó. Vacío por
+# default: sin setear, cae a request.build_absolute_uri() (sirve para dev
+# local, donde no hay dominio público que hardcodear).
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
+
 
 # --- Application definition -------------------------------------------------
 
