@@ -22,6 +22,30 @@
       {{ document.error_message }}
     </p>
   {% endif %}
+  {% comment %}
+    Mover a otra colección (plan-v2.md, Fase 10): htmx re-renderiza esta
+    misma card al cambiar — el CSRF token lo agrega automáticamente
+    static/js/csrf.js (listener global de htmx:configRequest en base.html),
+    no hace falta pasarlo a mano acá.
+  {% endcomment %}
+  {% if collections %}
+    <select
+      name="collection"
+      hx-post="{% url 'ingesta:move' document.id %}"
+      hx-trigger="change"
+      hx-target="#document-{{ document.id }}"
+      hx-swap="outerHTML"
+      class="mt-2 w-full rounded-md border border-input bg-transparent px-2 py-1 text-xs"
+      aria-label="Colección de «{{ document.filename }}»"
+    >
+      <option value="" {% if not document.collection_id %}selected{% endif %}>Sin colección</option>
+      {% for collection in collections %}
+        <option value="{{ collection.id }}" {% if document.collection_id == collection.id %}selected{% endif %}>
+          {{ collection.name }}
+        </option>
+      {% endfor %}
+    </select>
+  {% endif %}
   <form
     method="post"
     action="{% url 'ingesta:delete' document.id %}"

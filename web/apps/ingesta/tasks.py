@@ -90,7 +90,7 @@ def _process(document: Document) -> None:
     for start in range(0, len(chunks), EMBED_BATCH_SIZE):
         batch = chunks[start : start + EMBED_BATCH_SIZE]
         vectors = embed_passages([chunk.text for chunk in batch])
-        upsert_chunks_sync(document.document_id, batch, vectors)
+        upsert_chunks_sync(document.document_id, batch, vectors, collection_id=document.collection_id_str)
 
     document.status = Document.Status.INDEXED
     document.chunk_count = len(chunks)
