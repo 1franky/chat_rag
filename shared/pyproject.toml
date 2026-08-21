@@ -24,6 +24,8 @@ dependencies = [
     # vector_store.py: server pineado en compose.yaml a qdrant/qdrant:v1.17.1
     # — mantener el cliente a máximo 1 minor de diferencia.
     "qdrant-client>=1.17,<1.19",
+    # logging.py: config compartida de logs estructurados (plan.md, Fase 7).
+    "structlog>=24.4",
 ]
 
 [build-system]

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import structlog
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -9,6 +10,8 @@ from django.views.decorators.http import require_GET, require_POST
 from .models import Document
 from .services import delete_document
 from .tasks import process_document
+
+logger = structlog.get_logger()
 
 
 @login_required
@@ -31,6 +34,7 @@ def upload(request: HttpRequest) -> JsonResponse:
         size=uploaded.size,
     )
     process_document.delay(str(document.id))
+    logger.info("document_uploaded", document_id=str(document.id), filename=document.filename, size=document.size)
 
     card_html = render_to_string("ingesta/_document_card.html", {"document": document}, request=request)
     return JsonResponse({"document_id": str(document.id), "card_html": card_html})
@@ -49,4 +53,5 @@ def status(request: HttpRequest, document_id) -> HttpResponse:
 def delete(request: HttpRequest, document_id) -> HttpResponse:
     document = get_object_or_404(Document.objects.active(), pk=document_id)
     delete_document(document)
+    logger.info("document_deleted", document_id=str(document_id), filename=document.filename)
     return redirect("ingesta:list")

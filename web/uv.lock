@@ -2161,6 +2161,7 @@ dependencies = [
     { name = "python-pptx" },
     { name = "qdrant-client" },
     { name = "sentence-transformers" },
+    { name = "structlog" },
     { name = "torch", version = "2.13.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
     { name = "torch", version = "2.13.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
 ]
@@ -2180,6 +2181,7 @@ requires-dist = [
     { name = "python-pptx", specifier = ">=1.0" },
     { name = "qdrant-client", specifier = ">=1.17,<1.19" },
     { name = "sentence-transformers", specifier = ">=3.0" },
+    { name = "structlog", specifier = ">=24.4" },
     { name = "torch", specifier = ">=2.2", index = "https://download.pytorch.org/whl/cpu" },
 ]
 
