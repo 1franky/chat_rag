@@ -44,6 +44,12 @@ function chatPage(conversationId) {
       const pre = codeBlock.parentElement;
       if (!pre || pre.querySelector('.copy-btn')) return;
       pre.classList.add('relative');
+      // El tema de highlight.js le pone padding: 1em a <code>, pero el
+      // botón se posiciona relativo a <pre> (sin padding propio) — sin
+      // este espacio extra arriba, el botón queda encima de la primera
+      // línea de código y la tapa. Inline style para no pelear con la
+      // especificidad de highlight-github-dark.min.css.
+      codeBlock.style.paddingTop = '2.75rem';
       const button = document.createElement('button');
       button.type = 'button';
       button.textContent = 'Copiar';
@@ -51,10 +57,18 @@ function chatPage(conversationId) {
       // en `@media (hover: hover)`, así que en touch (sin mouse) esa media
       // query nunca matchea y el botón quedaba `hidden` para siempre — no
       // hay forma de "hacer hover" con el dedo.
+      // select-none: el botón es el último hijo de <pre> en el DOM (aunque
+      // visualmente queda arriba por position:absolute) — sin esto, una
+      // selección manual de todo el bloque de código arrastra "Copiar" al
+      // final del texto copiado.
       button.className =
-        'copy-btn absolute right-2 top-2 rounded bg-slate-700 px-2 py-1 text-xs text-white hover:bg-slate-600';
+        'copy-btn absolute right-2 top-2 rounded bg-slate-700 px-2 py-1 text-xs text-white select-none hover:bg-slate-600';
       button.addEventListener('click', () => {
-        navigator.clipboard.writeText(codeBlock.innerText).then(() => {
+        // textContent en vez de innerText: no depende de layout/render
+        // (innerText es sensible a CSS y puede comportarse distinto entre
+        // navegadores), así que es más confiable para capturar TODO el
+        // código, incluida la primera línea.
+        navigator.clipboard.writeText(codeBlock.textContent).then(() => {
           button.textContent = '¡Listo!';
           setTimeout(() => (button.textContent = 'Copiar'), 1500);
         });
