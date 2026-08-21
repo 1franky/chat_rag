@@ -19,6 +19,15 @@
   <div class="flex items-center justify-between border-b border-border px-4 py-2">
     <h1 class="flex min-w-0 items-center gap-2 text-sm font-medium">
       <span class="truncate">{{ conversation.title|default:"Nueva conversación" }}</span>
+      {% comment %}
+        Modelo usado (plan-v2.md, Fase 13): solo texto, no interactivo — no
+        se puede cambiar después de creada la conversación (ver
+        chat/models.py::Conversation.model).
+      {% endcomment %}
+      <span
+        class="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground"
+        title="Modelo de esta conversación"
+      >{{ conversation.get_model_display }}</span>
       {% if share_url %}
         <span
           class="shrink-0"

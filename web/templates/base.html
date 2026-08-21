@@ -55,11 +55,25 @@
           {% csrf_token %}
           <button
             type="submit"
-            class="mb-2 flex w-full items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
+            class="mb-1 flex w-full items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
           >
             <span>+</span> Nueva conversación
             <kbd class="ml-auto rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">⌘K</kbd>
           </button>
+          {% comment %}
+            Modelo de la nueva conversación (plan-v2.md, Fase 13): no se
+            puede cambiar después de creada, así que se elige acá — Sonnet
+            por default (más rápido/barato), Opus para lo que requiera más
+            capacidad.
+          {% endcomment %}
+          <select
+            name="model"
+            class="mb-2 w-full rounded-md border border-input bg-transparent px-2 py-1 text-xs text-muted-foreground"
+            aria-label="Modelo para la nueva conversación"
+          >
+            <option value="sonnet" selected>Sonnet — equilibrio (default)</option>
+            <option value="opus">Opus — más capaz, más lento y caro</option>
+          </select>
         </form>
         <a
           href="{% url 'ingesta:list' %}"

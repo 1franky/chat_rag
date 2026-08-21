@@ -10,7 +10,7 @@
     documentos que subiste y a las tools de datos conectadas.
   </p>
 
-  <form method="post" action="{% url 'chat:new' %}" class="mb-8">
+  <form method="post" action="{% url 'chat:new' %}" class="mb-8 flex flex-col items-center gap-2">
     {% csrf_token %}
     <button
       type="submit"
@@ -18,6 +18,18 @@
     >
       Nueva conversación
     </button>
+    {% comment %}
+      Modelo de la nueva conversación (plan-v2.md, Fase 13): no se puede
+      cambiar después de creada, así que se elige acá — Sonnet por default.
+    {% endcomment %}
+    <select
+      name="model"
+      class="w-48 rounded-md border border-input bg-transparent px-2 py-1 text-xs text-muted-foreground"
+      aria-label="Modelo para la nueva conversación"
+    >
+      <option value="sonnet" selected>Sonnet — equilibrio (default)</option>
+      <option value="opus">Opus — más capaz, más lento y caro</option>
+    </select>
   </form>
 
   <div class="grid w-full max-w-lg grid-cols-1 gap-2 sm:grid-cols-2">

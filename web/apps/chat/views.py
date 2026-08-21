@@ -47,7 +47,13 @@ def home(request: HttpRequest) -> HttpResponse:
 @login_required
 @require_POST
 def new_conversation(request: HttpRequest) -> HttpResponse:
-    conversation = Conversation.objects.create(user=request.user)
+    # POST arbitrario (no viene de un <select> siempre, ej. el botón rápido
+    # del sidebar no lo manda): default a Sonnet si falta o no es válido,
+    # en vez de que un valor pisoteado tire 500 (plan-v2.md, Fase 13).
+    model = request.POST.get("model", "")
+    if model not in Conversation.Model.values:
+        model = Conversation.Model.SONNET
+    conversation = Conversation.objects.create(user=request.user, model=model)
     detail_url = reverse("chat:detail", args=[conversation.id])
 
     # Prompt sugerido del estado vacío (chat/empty.html): se manda como
@@ -119,10 +125,15 @@ async def stream_message(request: HttpRequest, conversation_id) -> HttpResponse:
         # tool_use_id -> Message, para completar tool_result cuando llegue.
         pending_tool_messages: dict[str, Message] = {}
 
-        await logger.ainfo("chat_message_sent", conversation_id=str(conversation.id), message_length=len(user_text))
+        await logger.ainfo(
+            "chat_message_sent",
+            conversation_id=str(conversation.id),
+            message_length=len(user_text),
+            model=conversation.model,
+        )
 
         try:
-            async for event in agent.stream_reply(conversation.agent_session_id, user_text):
+            async for event in agent.stream_reply(conversation.agent_session_id, user_text, conversation.model):
                 event_type = event["type"]
 
                 if event_type == "token":
@@ -165,6 +176,12 @@ async def stream_message(request: HttpRequest, conversation_id) -> HttpResponse:
                     if event["session_id"]:
                         conversation.agent_session_id = event["session_id"]
                         await conversation.asave(update_fields=["agent_session_id", "updated_at"])
+                    await logger.ainfo(
+                        "chat_turn_done",
+                        conversation_id=str(conversation.id),
+                        model=conversation.model,
+                        resolved_model=event["resolved_model"],
+                    )
                     had_error = had_error or event["is_error"]
                     if event["is_error"] and event["error"]:
                         yield _sse({"type": "error", "error": event["error"]})
