@@ -78,6 +78,9 @@ services:
       QDRANT_URL: http://chat-qdrant:6333
       QDRANT_COLLECTION: rag_documents
       EMBEDDING_MODEL: intfloat/multilingual-e5-small
+      # Búsqueda híbrida (plan-v2.md, Fase 12) — debe coincidir con el
+      # mismo valor en chat-worker, es el que se usó para indexar.
+      SPARSE_EMBEDDING_MODEL: Qdrant/bm25
       MODEL_CACHE_DIR: /app/models
       DJANGO_SQLITE_PATH: /data/sqlite/db.sqlite3
     volumes:
@@ -124,6 +127,9 @@ services:
       QDRANT_URL: http://chat-qdrant:6333
       QDRANT_COLLECTION: rag_documents
       EMBEDDING_MODEL: intfloat/multilingual-e5-small
+      # Búsqueda híbrida (plan-v2.md, Fase 12) — debe coincidir con el
+      # mismo valor en chat-rag-mcp, es el que se usa al buscar.
+      SPARSE_EMBEDDING_MODEL: Qdrant/bm25
       MODEL_CACHE_DIR: /app/models
       MEDIA_ROOT: /data/media
     volumes:

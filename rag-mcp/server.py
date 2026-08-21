@@ -16,7 +16,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from rag_shared import documents_db, vector_store
-from rag_shared.embeddings import embed_query
+from rag_shared.embeddings import embed_query, embed_query_sparse
 from rag_shared.logging import configure_logging
 from rag_shared.models import Chunk, CollectionMeta, DocumentMeta
 
@@ -33,10 +33,17 @@ async def rag_search(query: str, top_k: int = 5, collection: str | None = None) 
     `collection` (opcional, plan-v2.md Fase 10) acota la búsqueda a una sola
     colección — usar el nombre exacto que devuelve `rag_list_collections`.
     Sin especificarlo, busca en todos los documentos indexados.
+
+    Búsqueda híbrida (plan-v2.md, Fase 12): combina similitud vectorial con
+    BM25 léxico, mejor para términos exactos (nombres propios, códigos).
     """
-    # embed_query es CPU-bound (sentence-transformers) y bloqueante: se
-    # corre en un thread aparte para no trabar el event loop del server.
-    vector = await asyncio.to_thread(embed_query, query)
+    # embed_query/embed_query_sparse son CPU-bound (sentence-transformers /
+    # fastembed) y bloqueantes: se corren en threads aparte para no trabar
+    # el event loop del server. No dependen entre sí, van en paralelo.
+    vector, sparse_vector = await asyncio.gather(
+        asyncio.to_thread(embed_query, query),
+        asyncio.to_thread(embed_query_sparse, query),
+    )
 
     collection_id = None
     if collection is not None:
@@ -45,7 +52,7 @@ async def rag_search(query: str, top_k: int = 5, collection: str | None = None) 
             logger.warning("rag_search_unknown_collection", collection=collection)
             return []
 
-    results = await vector_store.search(vector, top_k=top_k, collection_id=collection_id)
+    results = await vector_store.search(vector, sparse_vector, top_k=top_k, collection_id=collection_id)
     logger.info("rag_search", query=query, top_k=top_k, collection=collection, results=len(results))
     return results
 
