@@ -214,36 +214,47 @@ ir a `/documentos/`. Agregar un botón de adjuntar directo en el
 composer, sin cambiar de pantalla.
 
 Tareas:
-- [ ] `static/js/chat.js`: botón 📎 en el composer + `<input
+- [x] `static/js/chat.js`: botón 📎 en el composer + `<input
       type="file" hidden>`, dispara la misma request que ya usa
       `apps/ingesta/views.py::upload` (`POST /documentos/subir/`,
-      `multipart/form-data`, campo `file`) — **no hace falta backend
-      nuevo**, ese endpoint ya devuelve `{document_id, card_html}` y no
-      está atado a `/documentos/` de ninguna forma especial.
-  - Confirmar que `upload()` no tiene ninguna restricción de referer/CSRF
-    que choque al llamarlo desde `conversation.html` en vez de
-    `documents.html` (debería ser el mismo `@login_required` +
-    `@require_POST` de siempre, sin nada extra que revisar).
-- [ ] Mientras se indexa: chip inline en el composer o como mensaje de
-      sistema liviano en el hilo — "📎 archivo.pptx — indexando…" — con
-      polling al endpoint que ya existe (`ingesta:status`, mismo patrón
-      htmx/JS que usa `documents.html`) hasta que el `status` sea
-      `indexed` o `failed`.
-- [ ] Si falla la ingesta (`status=failed`), mostrar el `error_message`
-      del `Document` en el mismo chip, no fallar en silencio.
-- [ ] Sin selector de colección desde acá (a propósito, para no
-      complicar el flujo rápido) — el documento entra sin colección
-      asignada; si el usuario quiere organizarlo, lo mueve después desde
-      `/documentos/` (Fase 10, ya soporta eso).
-- [ ] `SYSTEM_PROMPT` (`chat/agent.py`) no necesita cambios — `rag_search`
-      ya busca en todo lo indexado por default, así que apenas termina de
-      indexarse el documento recién subido ya es encontrable en la misma
-      conversación.
+      `multipart/form-data`, campo `file`) — **no hizo falta backend
+      nuevo para subir**, ese endpoint ya devuelve `{document_id,
+      card_html}` y no está atado a `/documentos/` de ninguna forma
+      especial. Confirmado: `upload()` solo tiene `@login_required` +
+      `@require_POST`, sin restricción de referer que choque al llamarlo
+      desde `conversation.html`.
+- [x] Mientras se indexa: chip inline en el hilo (no en el composer, para
+      que quede en el historial de mensajes) — con polling **reusando
+      htmx** (mismo mecanismo que `documents.html`: `hx-get` a
+      `ingesta:status` cada 2s, `htmx.process()` tras insertar el chip a
+      mano vía JS, mismo patrón que ya usaba `ingesta.js`) hasta que el
+      `status` sea `indexed` o `failed`. Único cambio de backend: `upload`
+      y `status` (`apps/ingesta/views.py`) ahora aceptan `chip=1` (GET o
+      POST) para devolver un fragmento nuevo y más liviano
+      (`_chat_attachment_chip.html`) en vez de la card completa de
+      `/documentos/` — default sin el parámetro sigue devolviendo la card
+      de siempre, `documents.html` no cambió.
+- [x] Si falla la ingesta (`status=failed`), se muestra el `error_message`
+      del `Document` en el mismo chip (borde rojo + texto del error).
+- [x] Sin selector de colección desde acá — el chip liviano no lo incluye
+      (a diferencia de la card completa); si el usuario quiere
+      organizarlo, lo mueve después desde `/documentos/` (Fase 10).
+- [x] `SYSTEM_PROMPT` (`chat/agent.py`) no necesitó cambios — confirmado
+      con el criterio de aceptación real.
 
-**Criterio de aceptación**: subo un archivo nuevo sin salir de la
-conversación, veo el indicador de "indexando…" pasar a "listo", y en el
-mismo hilo le pregunto algo sobre ese documento y me responde con su
-contenido.
+**Criterio de aceptación**: verificado end-to-end contra el stack Docker
+real (subida vía `curl -F`, sin UI real de navegador, pero mismo camino de
+requests que usaría el JS): subí un `.txt` con un dato inventado dentro de
+una conversación nueva, el chip pasó de "Pendiente" a "Indexado" en el
+polling, y en el mismo hilo le pregunté por ese dato — Claude respondió
+citando el valor exacto del documento recién subido. También verificado
+el caso de fallo (archivo con mime type no soportado): el chip queda con
+borde rojo, badge "Error" y el `error_message` real
+("Tipo de archivo no soportado: application/octet-stream") visible, sin
+fallar en silencio. `/documentos/` confirmado sin cambios de
+comportamiento (mismas cards completas de siempre). Documentos y
+conversaciones de prueba borrados (incluyendo vectores en Qdrant) al
+terminar.
 
 ---
 
