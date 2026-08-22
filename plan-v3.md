@@ -65,6 +65,31 @@ lo devuelve como un link markdown normal en su respuesta — el chat ya
 renderiza markdown, así que un `[reporte.xlsx](url)` sale clickeable sin
 tocar el JS del composer ni inventar un sistema de "adjuntos" nuevo.
 
+**Nota sobre `data-platform-mcp` y su propia tool `generate_report`**:
+investigando esto se encontró que el MCP externo (`data-platform-mcp`,
+código en `~/docker/data-analits-MCP` en este mismo host — no es parte
+de este repo) ya expone una tool `generate_report` bastante madura
+(pregunta en lenguaje natural sobre **una sola** conexión → genera y
+ejecuta el SQL sola → exporta a xlsx/pdf/csv/json/html, con budget de
+tamaño y truncado). Decisión explícita: **no se usa esa tool para nada
+de esto** — la reportería completa (generación de los archivos) vive
+acá, en `chat_rag`/`chat-rag-mcp`; `data-platform-mcp` queda acotado a
+solo **consultar** datos (`execute_read_query`,
+`generate_and_execute_query`, etc.), igual que hoy. Motivo: control
+total de formatos (docx/pptx/drawio no existen del lado de
+`data-platform-mcp`, y no tiene sentido tener dos sistemas de reportería
+en dos proyectos distintos) y porque el caso de cruzar datos de más de
+una conexión (el ejemplo original del usuario) no encaja en el diseño
+de esa tool de todos modos (una sola conexión, una sola pregunta, un
+solo SQL). Ojo al escribir el `SYSTEM_PROMPT` (`chat/agent.py`) en la
+Fase 20: hay que ser explícito en que para generar archivos/reportes
+descargables se usan las tools `report_*` de `rag`, no `generate_report`
+de `data-platform` — si no, nada impide que Claude la use igual (ambas
+aparecen como tools disponibles) y el resultado sea el problema
+original: un payload `content_base64` volcado como JSON crudo en el
+chat (`templates/chat/_message.html` hoy no tiene ningún manejo especial
+para eso).
+
 **Nota sobre links compartidos (Fase 11)**: un link de reporte que
 aparece en el texto de una respuesta SÍ se ve en una conversación
 compartida por `/compartido/<token>/` (a diferencia de los mensajes de
@@ -333,7 +358,10 @@ Tareas:
       armada con `PUBLIC_BASE_URL`). Agregar al `SYSTEM_PROMPT` de
       `chat/agent.py` cuándo usarla (ej. "cuando el usuario pida
       explícitamente un archivo/reporte/exportar datos en vez de verlos
-      en el chat").
+      en el chat") **y aclarar explícitamente que `generate_report` de
+      `data-platform` NO se usa para esto** (ver la nota de arquitectura
+      más arriba) — sin esa aclaración nada impide que Claude la elija
+      igual, ya que las dos aparecen como tools disponibles.
 - [ ] Vista Django nueva para servir la descarga — evaluar si conviene
       una app `apps/reports/` propia (más limpio si las Fases 21/22
       suman más lógica acá) o un par de funciones sueltas en
