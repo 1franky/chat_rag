@@ -12,7 +12,7 @@
 {% block content %}
 <div
   class="flex h-full flex-col"
-  x-data="chatPage('{{ conversation.id }}')"
+  x-data="chatPage('{{ conversation.id }}', {{ can_retry|yesno:'true,false' }})"
   x-init="init()"
   data-conversation-id="{{ conversation.id }}"
 >
@@ -102,6 +102,22 @@
   <div class="border-t border-border p-4">
     <div x-show="errorMessage" x-cloak class="mb-2 rounded-md bg-destructive px-3 py-2 text-sm text-destructive-foreground">
       <span x-text="errorMessage"></span>
+    </div>
+    {% comment %}
+      Reintentar el último turno si falló (plan-v3.md, Fase 15) — abajo del
+      hilo en vez de dentro de `#message-list` para no tener que reordenar
+      el DOM cada vez que `send()`/`retry()` agregan un bubble nuevo
+      (`canRetry` se recalcula en JS al terminar cada turno, ver chat.js).
+      No se puede "editar" un turno pasado (ver el docstring de
+      chat/agent.py) — reenvía el mismo texto como turno nuevo.
+    {% endcomment %}
+    <div x-show="canRetry && !sending" x-cloak class="mb-2">
+      <button
+        type="button"
+        @click="retry()"
+        :disabled="sending"
+        class="rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:border-ring hover:bg-accent hover:text-accent-foreground"
+      >↻ Reintentar</button>
     </div>
     <form @submit.prevent="send()" class="flex items-end gap-2">
       <textarea
