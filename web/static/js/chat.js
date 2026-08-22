@@ -2,11 +2,15 @@
 // porque necesitamos mandar un POST con body — EventSource solo hace GET),
 // render de markdown post-stream con marked.js + highlight.js.
 
-function chatPage(conversationId) {
+function chatPage(conversationId, initialCanRetry) {
   return {
     draft: '',
     sending: false,
     errorMessage: '',
+    // Botón "↻ Reintentar" (plan-v3.md, Fase 15) — arranca con el valor
+    // calculado server-side (conversation_detail) y se recalcula acá cada
+    // vez que termina un turno, para no depender de un reload.
+    canRetry: initialCanRetry,
 
     init() {
       this.renderExistingMarkdown();
@@ -187,14 +191,39 @@ function chatPage(conversationId) {
       this.$nextTick(() => this.autoResize());
       this.scrollToBottom();
 
+      await this.runTurn(`/chat/${conversationId}/stream/`, { message: text });
+
+      // El título se autogenera en el server con el primer mensaje
+      // (Conversation.set_title_from_message, trunca a 60 caracteres) — se
+      // refleja acá al toque para no esperar a la próxima navegación.
+      this.updateSidebarTitle(text);
+    },
+
+    async retry() {
+      // Reintentar el último turno si falló (plan-v3.md, Fase 15) — mismo
+      // stream que send(), pero el server reusa el último mensaje de
+      // usuario ya guardado en vez de crear uno nuevo (no hace falta
+      // mandarlo en el body).
+      if (this.sending || !this.canRetry) return;
+
+      this.sending = true;
+      this.errorMessage = '';
+      await this.runTurn(`/chat/${conversationId}/reintentar/`, {});
+    },
+
+    // Streaming SSE compartido por send() y retry() — ambos pegan a un
+    // endpoint que devuelve la misma secuencia de eventos, solo cambia si
+    // el server crea un Message de rol user nuevo o reusa el último.
+    async runTurn(url, body) {
       const assistantBubble = this.appendBubble('assistant');
       let assistantText = '';
+      let turnFailed = false;
 
       try {
-        const response = await fetch(`/chat/${conversationId}/stream/`, {
+        const response = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
-          body: JSON.stringify({ message: text }),
+          body: JSON.stringify(body),
         });
 
         if (!response.ok || !response.body) {
@@ -225,11 +254,13 @@ function chatPage(conversationId) {
               this.updateToolChip(data);
             } else if (data.type === 'error') {
               this.errorMessage = data.error || 'Algo salió mal.';
+              turnFailed = true;
             }
           }
         }
       } catch (error) {
         this.errorMessage = error.message || 'No se pudo conectar con el servidor.';
+        turnFailed = true;
       }
 
       if (assistantText) {
@@ -247,12 +278,10 @@ function chatPage(conversationId) {
       }
       this.scrollToBottom();
       this.sending = false;
+      // Mismo criterio que `views._last_turn_failed`: sin texto de
+      // respuesta, o con al menos un evento de error durante el turno.
+      this.canRetry = !assistantText || turnFailed;
       this.$nextTick(() => this.$refs.input?.focus());
-
-      // El título se autogenera en el server con el primer mensaje
-      // (Conversation.set_title_from_message, trunca a 60 caracteres) — se
-      // refleja acá al toque para no esperar a la próxima navegación.
-      this.updateSidebarTitle(text);
     },
 
     updateSidebarTitle(firstMessage) {

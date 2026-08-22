@@ -71,7 +71,7 @@ def new_conversation(request: HttpRequest) -> HttpResponse:
 @login_required
 def conversation_detail(request: HttpRequest, conversation_id) -> HttpResponse:
     conversation = _get_conversation_or_404(request, conversation_id)
-    chat_messages = conversation.messages.all()
+    chat_messages = list(conversation.messages.all())
     active_link = conversation.shared_links.filter(revoked_at__isnull=True).first()
     return render(
         request,
@@ -79,11 +79,23 @@ def conversation_detail(request: HttpRequest, conversation_id) -> HttpResponse:
         {
             "conversation": conversation,
             "chat_messages": chat_messages,
+            # Botón "↻ Reintentar" (plan-v3.md, Fase 15): solo si el último
+            # turno quedó sin terminar — ver el docstring de
+            # `views.retry_message` para el criterio exacto.
+            "can_retry": _last_turn_failed(chat_messages),
             # Solo se usan si chat_messages está vacío (conversación recién
             # creada) — ver el bloque de estado vacío en conversation.html.
             "suggested_prompts": SUGGESTED_PROMPTS,
             "share_url": _share_url(request, active_link.token) if active_link else None,
         },
+    )
+
+
+def _last_turn_failed(chat_messages: list[Message]) -> bool:
+    last_non_tool = next((m for m in reversed(chat_messages) if m.role != Message.Role.TOOL), None)
+    return last_non_tool is not None and (
+        last_non_tool.role == Message.Role.USER
+        or (last_non_tool.role == Message.Role.ASSISTANT and last_non_tool.is_error)
     )
 
 
@@ -120,101 +132,153 @@ async def stream_message(request: HttpRequest, conversation_id) -> HttpResponse:
     if not conversation.title:
         await conversation.aset_title_from_message(user_text)
 
-    async def event_stream():
-        assistant_text = ""
-        had_error = False
-        # tool_use_id -> Message, para completar tool_result cuando llegue.
-        pending_tool_messages: dict[str, Message] = {}
+    return _streaming_response(_stream_agent_turn(conversation, user_text))
 
-        await logger.ainfo(
-            "chat_message_sent",
-            conversation_id=str(conversation.id),
-            message_length=len(user_text),
-            model=conversation.model,
-        )
 
-        try:
-            async for event in agent.stream_reply(conversation.agent_session_id, user_text, conversation.model):
-                event_type = event["type"]
+async def retry_message(request: HttpRequest, conversation_id) -> HttpResponse:
+    """Reintenta el último turno si falló (plan-v3.md, Fase 15) — vuelve a
+    mandar el texto del último mensaje de usuario como turno *nuevo* (no se
+    puede "editar"/rebobinar un turno ya ocurrido, ver el docstring de
+    `chat/agent.py`). No crea un `Message` de rol `user` nuevo: reusa el que
+    ya está guardado del intento anterior.
+    """
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
 
-                if event_type == "token":
-                    yield _sse({"type": "token", "text": event["text"]})
+    user = await request.auser()
+    if not user.is_authenticated:
+        return JsonResponse({"error": "No autenticado"}, status=401)
 
-                elif event_type == "text_block":
-                    assistant_text += event["text"]
+    try:
+        conversation = await Conversation.objects.aget(pk=conversation_id, user=user)
+    except Conversation.DoesNotExist:
+        return JsonResponse({"error": "Conversación no encontrada"}, status=404)
 
-                elif event_type == "tool_use":
-                    tool_message = await Message.objects.acreate(
-                        conversation=conversation,
-                        role=Message.Role.TOOL,
-                        tool_name=event["name"],
-                        tool_args=event["input"],
-                    )
-                    pending_tool_messages[event["id"]] = tool_message
-                    yield _sse(
-                        {"type": "tool_use", "id": event["id"], "name": event["name"], "input": event["input"]}
-                    )
+    # "Fallado" = el último mensaje que no es de una tool es un mensaje de
+    # usuario sin respuesta (el turno se cortó antes de producir ningún
+    # texto — no llega a crearse ni el Message de rol assistant, ver el
+    # `if assistant_text:` de _stream_agent_turn) o un mensaje de asistente
+    # marcado con is_error=True. Si el último turno terminó bien, no hay
+    # nada que reintentar. Mismo criterio que `_last_turn_failed`, que
+    # decide si mostrar el botón — pero acá con el ORM async (`alast`) en
+    # vez de traer todos los mensajes a una lista.
+    last_message = await conversation.messages.exclude(role=Message.Role.TOOL).alast()
+    retryable = last_message is not None and (
+        last_message.role == Message.Role.USER
+        or (last_message.role == Message.Role.ASSISTANT and last_message.is_error)
+    )
+    if not retryable:
+        return JsonResponse({"error": "No hay ningún turno fallido para reintentar"}, status=400)
 
-                elif event_type == "tool_result":
-                    tool_message = pending_tool_messages.get(event["tool_use_id"])
-                    if tool_message is not None:
-                        tool_message.tool_result = event["content"]
-                        tool_message.is_error = event["is_error"]
-                        await tool_message.asave(update_fields=["tool_result", "is_error"])
-                    yield _sse(
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": event["tool_use_id"],
-                            "is_error": event["is_error"],
-                        }
-                    )
+    last_user_message = await conversation.messages.filter(role=Message.Role.USER).alast()
+    if last_user_message is None:
+        return JsonResponse({"error": "No hay ningún turno fallido para reintentar"}, status=400)
 
-                elif event_type == "error":
-                    had_error = True
-                    yield _sse({"type": "error", "error": event["error"]})
+    return _streaming_response(_stream_agent_turn(conversation, last_user_message.content, is_retry=True))
 
-                elif event_type == "done":
-                    update_fields = ["updated_at"]
-                    if event["session_id"]:
-                        conversation.agent_session_id = event["session_id"]
-                        update_fields.append("agent_session_id")
-                    turn_cost_usd = event["cost_usd"]
-                    if turn_cost_usd:
-                        # str() en vez de Decimal(float) directo: evita
-                        # arrastrar el error de redondeo binario del float.
-                        conversation.total_cost_usd += Decimal(str(turn_cost_usd))
-                        update_fields.append("total_cost_usd")
-                    await conversation.asave(update_fields=update_fields)
-                    await logger.ainfo(
-                        "chat_turn_done",
-                        conversation_id=str(conversation.id),
-                        model=conversation.model,
-                        resolved_model=event["resolved_model"],
-                        cost_usd=turn_cost_usd,
-                    )
-                    had_error = had_error or event["is_error"]
-                    if event["is_error"] and event["error"]:
-                        yield _sse({"type": "error", "error": event["error"]})
 
-        except Exception as exc:  # noqa: BLE001 — se lo mostramos al usuario y cerramos el stream
-            had_error = True
-            await logger.aerror("chat_stream_failed", conversation_id=str(conversation.id), exc_info=exc)
-            yield _sse({"type": "error", "error": str(exc)})
-
-        if assistant_text:
-            await Message.objects.acreate(
-                conversation=conversation,
-                role=Message.Role.ASSISTANT,
-                content=assistant_text,
-                is_error=had_error,
-            )
-
-        yield _sse({"type": "done"})
-
-    response = StreamingHttpResponse(event_stream(), content_type="text/event-stream")
+def _streaming_response(event_stream) -> StreamingHttpResponse:
+    response = StreamingHttpResponse(event_stream, content_type="text/event-stream")
     response["Cache-Control"] = "no-cache"
     response["X-Accel-Buffering"] = "no"
     return response
+
+
+async def _stream_agent_turn(conversation: Conversation, user_text: str, *, is_retry: bool = False):
+    """Generador de eventos SSE compartido por `stream_message` y
+    `retry_message` — a los dos les toca correr el mismo turno del agente y
+    persistir los mismos side effects (mensajes de tool/assistant, costo,
+    session_id). Asume que el `Message` de rol `user` con `user_text` ya
+    está guardado (lo crea `stream_message`; `retry_message` reusa el que ya
+    existía del intento anterior).
+    """
+    assistant_text = ""
+    had_error = False
+    # tool_use_id -> Message, para completar tool_result cuando llegue.
+    pending_tool_messages: dict[str, Message] = {}
+
+    await logger.ainfo(
+        "chat_turn_retried" if is_retry else "chat_message_sent",
+        conversation_id=str(conversation.id),
+        message_length=len(user_text),
+        model=conversation.model,
+    )
+
+    try:
+        async for event in agent.stream_reply(conversation.agent_session_id, user_text, conversation.model):
+            event_type = event["type"]
+
+            if event_type == "token":
+                yield _sse({"type": "token", "text": event["text"]})
+
+            elif event_type == "text_block":
+                assistant_text += event["text"]
+
+            elif event_type == "tool_use":
+                tool_message = await Message.objects.acreate(
+                    conversation=conversation,
+                    role=Message.Role.TOOL,
+                    tool_name=event["name"],
+                    tool_args=event["input"],
+                )
+                pending_tool_messages[event["id"]] = tool_message
+                yield _sse({"type": "tool_use", "id": event["id"], "name": event["name"], "input": event["input"]})
+
+            elif event_type == "tool_result":
+                tool_message = pending_tool_messages.get(event["tool_use_id"])
+                if tool_message is not None:
+                    tool_message.tool_result = event["content"]
+                    tool_message.is_error = event["is_error"]
+                    await tool_message.asave(update_fields=["tool_result", "is_error"])
+                yield _sse(
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": event["tool_use_id"],
+                        "is_error": event["is_error"],
+                    }
+                )
+
+            elif event_type == "error":
+                had_error = True
+                yield _sse({"type": "error", "error": event["error"]})
+
+            elif event_type == "done":
+                update_fields = ["updated_at"]
+                if event["session_id"]:
+                    conversation.agent_session_id = event["session_id"]
+                    update_fields.append("agent_session_id")
+                turn_cost_usd = event["cost_usd"]
+                if turn_cost_usd:
+                    # str() en vez de Decimal(float) directo: evita
+                    # arrastrar el error de redondeo binario del float.
+                    conversation.total_cost_usd += Decimal(str(turn_cost_usd))
+                    update_fields.append("total_cost_usd")
+                await conversation.asave(update_fields=update_fields)
+                await logger.ainfo(
+                    "chat_turn_done",
+                    conversation_id=str(conversation.id),
+                    model=conversation.model,
+                    resolved_model=event["resolved_model"],
+                    cost_usd=turn_cost_usd,
+                )
+                had_error = had_error or event["is_error"]
+                if event["is_error"] and event["error"]:
+                    yield _sse({"type": "error", "error": event["error"]})
+
+    except Exception as exc:  # noqa: BLE001 — se lo mostramos al usuario y cerramos el stream
+        had_error = True
+        await logger.aerror("chat_stream_failed", conversation_id=str(conversation.id), exc_info=exc)
+        yield _sse({"type": "error", "error": str(exc)})
+
+    if assistant_text:
+        await Message.objects.acreate(
+            conversation=conversation,
+            role=Message.Role.ASSISTANT,
+            content=assistant_text,
+            is_error=had_error,
+        )
+
+    yield _sse({"type": "done"})
 
 
 @login_required

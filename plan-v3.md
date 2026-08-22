@@ -166,28 +166,44 @@ un "editar cualquier mensaje pasado y regenerar desde ahí" — eso último
 implicaría manejar ramas de conversación, fuera de alcance acá.
 
 Tareas:
-- [ ] `chat/views.py`: nuevo endpoint (ej. `POST
-      /chat/<uuid:conversation_id>/reintentar/`) o flag en
-      `stream_message` que, en vez de leer `message` del body, toma el
-      texto del último `Message` con `role=USER` de la conversación —
-      solo si el `Message` de `role=ASSISTANT` más reciente tiene
-      `is_error=True` (si no, 400: no hay nada que reintentar).
-- [ ] No duplicar el `Message` de rol `user` en la base (ya está guardado
-      del intento anterior) — reusar el mismo flujo de streaming de
-      `stream_message` pero saltando el `Message.objects.acreate(...,
-      role=USER, ...)` inicial.
-- [ ] UI: botón "↻ Reintentar" visible solo bajo el último mensaje del
-      asistente cuando ese mensaje quedó marcado con error (mismo
-      criterio visual que ya usa `_message.html` para pintar errores,
-      revisar cómo distingue `is_error` hoy).
-- [ ] `static/js/chat.js`: la llamada al nuevo endpoint reusa el mismo
-      manejo de SSE que ya existe para mandar un mensaje normal (no
-      duplicar lógica de parseo de eventos).
+- [x] `chat/views.py`: nuevo endpoint `POST
+      /chat/<uuid:conversation_id>/reintentar/` (`retry_message`) que, en
+      vez de leer `message` del body, toma el texto del último `Message`
+      con `role=USER` de la conversación — solo si el último mensaje que no
+      es de una tool es ese mismo mensaje de usuario sin respuesta (el
+      turno se cortó antes de producir texto) o un `Message` de
+      `role=ASSISTANT` con `is_error=True` (si no, 400: no hay nada que
+      reintentar). Se amplió el criterio del enunciado original ("el
+      `Message` de `role=ASSISTANT` más reciente tiene `is_error=True`")
+      porque si el turno falla ANTES de que el modelo emita texto, no llega
+      a crearse ningún `Message` de rol assistant (ver el `if
+      assistant_text:` de `_stream_agent_turn`) — con el criterio literal
+      ese caso hubiera quedado sin forma de reintentar.
+- [x] No duplicar el `Message` de rol `user` en la base (ya está guardado
+      del intento anterior) — se extrajo el generador de eventos SSE de
+      `stream_message` a `_stream_agent_turn(conversation, user_text)`,
+      compartido por ambos endpoints; `retry_message` no llama a
+      `Message.objects.acreate(..., role=USER, ...)`.
+- [x] UI: botón "↻ Reintentar" — no se puso dentro de `_message.html`
+      (bajo el mensaje del asistente en el DOM) para no tener que reordenar
+      el hilo cada vez que `send()`/`retry()` agregan un bubble nuevo; en
+      cambio queda fijo debajo del hilo, junto al box de `errorMessage`,
+      visible con el mismo criterio (`can_retry`, calculado server-side en
+      `conversation_detail` y recalculado en JS al terminar cada turno).
+- [x] `static/js/chat.js`: `send()` y `retry()` comparten un helper
+      `runTurn(url, body)` con todo el parseo de SSE — no se duplicó esa
+      lógica.
 
-**Criterio de aceptación**: fuerzo un error (ej. cortando `chat-rag-mcp`
-un momento así una tool falla, o algo que dispare `is_error`), aparece el
-botón, lo aprieto sin retipear nada, y el turno se reintenta con el mismo
-texto.
+**Criterio de aceptación**: verificado sin gastar en la API para el caso
+base (mensaje de usuario insertado a mano en la DB, sin respuesta —
+simula un turno cortado antes de cualquier texto) y con turnos reales de
+Claude para confirmar el flujo end-to-end completo, incluyendo el segundo
+caso (`Message` de asistente con `is_error=True`): en ambos, el botón
+aparece (`can_retry`/`chatPage(..., true)` en el HTML), al reintentar NO
+se duplica el `Message` de rol user, se agrega un `Message` de asistente
+nuevo con la respuesta, y `can_retry` vuelve a `false` tras un reintento
+exitoso. También confirmado el 400 ("No hay ningún turno fallido para
+reintentar") en una conversación sin nada que reintentar.
 
 ---
 
