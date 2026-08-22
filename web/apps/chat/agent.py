@@ -76,7 +76,8 @@ async def stream_reply(resume_session_id: str | None, user_message: str, model: 
     - {"type": "token", "text": str} — delta de texto (streaming real)
     - {"type": "tool_use", "id", "name", "input"} — Claude invoca una tool
     - {"type": "tool_result", "tool_use_id", "content", "is_error"}
-    - {"type": "done", "session_id", "is_error", "error"} — fin del turno
+    - {"type": "done", "session_id", "is_error", "error", "cost_usd"} — fin
+      del turno
 
     `model`: alias del Agent SDK ("sonnet"/"opus") — `Conversation.model`.
     """
@@ -118,4 +119,8 @@ async def stream_reply(resume_session_id: str | None, user_message: str, model: 
                 # verificar que Opus/Sonnet efectivamente se usó, no para
                 # mostrar en la UI.
                 "resolved_model": list(message.model_usage) if message.model_usage else None,
+                # Costo real del turno en USD (plan-v3.md, Fase 14) — se
+                # acumula en Conversation.total_cost_usd. None en turnos que
+                # fallaron antes de completar (visto como 0 por quien suma).
+                "cost_usd": message.total_cost_usd,
             }

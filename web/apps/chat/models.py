@@ -1,5 +1,6 @@
 import secrets
 import uuid
+from decimal import Decimal
 
 from django.conf import settings
 from django.db import models
@@ -34,6 +35,10 @@ class Conversation(models.Model):
     # por `agent_session_id` es confuso (el contexto previo quedó generado
     # por el otro modelo).
     model = models.CharField(max_length=16, choices=Model.choices, default=Model.SONNET)
+    # Suma de ResultMessage.total_cost_usd de todos los turnos (plan-v3.md,
+    # Fase 14) — Decimal para no arrastrar errores de redondeo binario de
+    # float al acumular; SQLite no tiene problema con DecimalField de Django.
+    total_cost_usd = models.DecimalField(max_digits=10, decimal_places=6, default=Decimal("0"))
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
