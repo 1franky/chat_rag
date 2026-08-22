@@ -120,6 +120,28 @@
       >↻ Reintentar</button>
     </div>
     <form @submit.prevent="send()" class="flex items-end gap-2">
+      {% comment %}
+        Adjuntar documento desde el chat (plan-v3.md, Fase 16): reusa el
+        mismo endpoint de ingesta (`POST /documentos/subir/`) que
+        `documents.html` — no hace falta backend nuevo para subir, solo un
+        fragmento HTML más liviano para el chip (`?chip=1`, ver
+        apps/ingesta/views.py). Sin selector de colección acá a propósito;
+        si el usuario quiere organizarlo, lo mueve después desde
+        `/documentos/`.
+      {% endcomment %}
+      <input
+        type="file"
+        x-ref="fileInput"
+        class="hidden"
+        @change="attachFile($event.target.files[0]); $event.target.value = ''"
+      >
+      <button
+        type="button"
+        @click="$refs.fileInput.click()"
+        title="Adjuntar documento"
+        aria-label="Adjuntar documento"
+        class="shrink-0 rounded-md border border-input px-3 py-2 text-sm text-muted-foreground hover:border-ring hover:bg-accent hover:text-accent-foreground"
+      >📎</button>
       <textarea
         x-ref="input"
         x-model="draft"

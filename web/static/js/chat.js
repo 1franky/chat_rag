@@ -180,6 +180,52 @@ function chatPage(conversationId, initialCanRetry) {
       }
     },
 
+    async attachFile(file) {
+      // Adjuntar documento desde el chat (plan-v3.md, Fase 16) — mismo
+      // endpoint que documents.html (POST /documentos/subir/), pero
+      // `chip=1` le pide al server el fragmento liviano
+      // (_chat_attachment_chip.html) en vez de la card completa. htmx ya
+      // está cargado global (base.html) — htmx.process() activa el
+      // hx-get/hx-trigger del chip recién insertado, que sondea
+      // ingesta:status cada 2s hasta pending/processing termina.
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('chip', '1');
+
+      try {
+        const response = await fetch('/documentos/subir/', {
+          method: 'POST',
+          headers: { 'X-CSRFToken': getCsrfToken() },
+          body: formData,
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          Alpine.store('toast').push(data.error || `No se pudo subir el archivo (HTTP ${response.status}).`, 'error');
+          return;
+        }
+        this.appendAttachmentChip(data.card_html);
+      } catch (error) {
+        Alpine.store('toast').push('No se pudo conectar con el servidor.', 'error');
+      }
+    },
+
+    appendAttachmentChip(html) {
+      // $refs.emptyState?.remove(): adjuntar puede ser lo primero que hace
+      // el usuario en una conversación recién creada (Fase 16), antes de
+      // escribir nada — mismo remove() que ya dispara el click de un
+      // prompt sugerido (ver conversation.html).
+      this.$refs.emptyState?.remove();
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = html.trim();
+      const chip = wrapper.firstElementChild;
+      if (!chip) return;
+      this.$refs.messageList.appendChild(chip);
+      if (window.htmx) htmx.process(chip);
+      this.scrollToBottom();
+    },
+
     async send() {
       const text = this.draft.trim();
       if (!text || this.sending) return;

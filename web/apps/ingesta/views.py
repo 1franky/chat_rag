@@ -70,7 +70,7 @@ def upload(request: HttpRequest) -> JsonResponse:
     logger.info("document_uploaded", document_id=str(document.id), filename=document.filename, size=document.size)
 
     card_html = render_to_string(
-        "ingesta/_document_card.html",
+        _document_fragment_template(request),
         {"document": document, "collections": Collection.objects.all()},
         request=request,
     )
@@ -84,9 +84,20 @@ def status(request: HttpRequest, document_id) -> HttpResponse:
     document = get_object_or_404(Document.objects.active(), pk=document_id)
     return render(
         request,
-        "ingesta/_document_card.html",
+        _document_fragment_template(request),
         {"document": document, "collections": Collection.objects.all()},
     )
+
+
+def _document_fragment_template(request: HttpRequest) -> str:
+    """`?chip=1` (GET o POST) pide el chip liviano usado al adjuntar un
+    documento desde el chat (plan-v3.md, Fase 16, `chat.js::attachFile`) en
+    vez de la card completa de `/documentos/` — mismo mecanismo de polling
+    htmx (`hx-get` a `status` cada 2s hasta salir de pending/processing),
+    pero sin selector de colección ni botón de borrar (a propósito, para no
+    complicar el flujo rápido del composer)."""
+    wants_chip = request.GET.get("chip") == "1" or request.POST.get("chip") == "1"
+    return "ingesta/_chat_attachment_chip.html" if wants_chip else "ingesta/_document_card.html"
 
 
 @login_required
