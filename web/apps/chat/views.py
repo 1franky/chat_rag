@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from datetime import timedelta
+from decimal import Decimal
 from urllib.parse import urlencode
 
 import structlog
@@ -173,14 +174,23 @@ async def stream_message(request: HttpRequest, conversation_id) -> HttpResponse:
                     yield _sse({"type": "error", "error": event["error"]})
 
                 elif event_type == "done":
+                    update_fields = ["updated_at"]
                     if event["session_id"]:
                         conversation.agent_session_id = event["session_id"]
-                        await conversation.asave(update_fields=["agent_session_id", "updated_at"])
+                        update_fields.append("agent_session_id")
+                    turn_cost_usd = event["cost_usd"]
+                    if turn_cost_usd:
+                        # str() en vez de Decimal(float) directo: evita
+                        # arrastrar el error de redondeo binario del float.
+                        conversation.total_cost_usd += Decimal(str(turn_cost_usd))
+                        update_fields.append("total_cost_usd")
+                    await conversation.asave(update_fields=update_fields)
                     await logger.ainfo(
                         "chat_turn_done",
                         conversation_id=str(conversation.id),
                         model=conversation.model,
                         resolved_model=event["resolved_model"],
+                        cost_usd=turn_cost_usd,
                     )
                     had_error = had_error or event["is_error"]
                     if event["is_error"] and event["error"]:

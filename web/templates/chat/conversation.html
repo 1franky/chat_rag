@@ -28,6 +28,21 @@
         class="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground"
         title="Modelo de esta conversación"
       >{{ conversation.get_model_display }}</span>
+      {% comment %}
+        Costo acumulado del turno (plan-v3.md, Fase 14) — suma de
+        ResultMessage.total_cost_usd de cada turno, actualizado en
+        chat/views.py::stream_message. Solo texto, sin interacción, igual
+        que el badge de modelo. El sufijo "u" de `floatformat:"4u"` fuerza
+        el punto decimal (no la coma de LANGUAGE_CODE="es") — es un monto en
+        USD, no un número localizado. Los filtros `unlocalize`/el tag
+        `{% templatetag openblock %} localize off {% templatetag closeblock %}`
+        NO alcanzan acá: `floatformat` decide su propio localizado con este
+        sufijo, sin mirar el contexto de localización del template.
+      {% endcomment %}
+      <span
+        class="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground"
+        title="Costo acumulado de esta conversación"
+      >${{ conversation.total_cost_usd|floatformat:"4u" }}</span>
       {% if share_url %}
         <span
           class="shrink-0"

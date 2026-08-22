@@ -114,27 +114,29 @@ devuelve el Agent SDK en cada turno (`ResultMessage.total_cost_usd`) pero
 se descarta.
 
 Tareas:
-- [ ] `chat/models.py::Conversation.total_cost_usd` — `DecimalField`
+- [x] `chat/models.py::Conversation.total_cost_usd` — `DecimalField`
       (o `FloatField`, ver qué tan preciso hace falta que sea; SQLite no
       tiene problema con `Decimal` vía Django) default 0, se acumula
       turno a turno.
-- [ ] Migración.
-- [ ] `chat/agent.py`: el evento `"done"` que ya arma la rama
+- [x] Migración.
+- [x] `chat/agent.py`: el evento `"done"` que ya arma la rama
       `ResultMessage` (donde vive `resolved_model`, agregado en la
       Fase 13) suma `"cost_usd": message.total_cost_usd`.
-- [ ] `chat/views.py::stream_message`: en el bloque `elif event_type ==
+- [x] `chat/views.py::stream_message`: en el bloque `elif event_type ==
       "done"` (mismo lugar donde ya se loguea `chat_turn_done` y se
       actualiza `agent_session_id`), sumar `event["cost_usd"]` a
       `conversation.total_cost_usd` antes del `asave` (agregar el campo a
       `update_fields`). `total_cost_usd` puede venir `None` en turnos que
       fallaron antes de completar — tratarlo como 0.
-- [ ] UI: badge en el header de `conversation.html`, al lado del badge de
+- [x] UI: badge en el header de `conversation.html`, al lado del badge de
       modelo que ya existe (Fase 13) — `${{ conversation.total_cost_usd
       }}` con 3-4 decimales, texto chico, sin interacción.
 - [ ] Opcional/nice-to-have: mostrarlo también en el sidebar (junto al
       título de cada conversación) para comparar de un vistazo cuáles
       salieron más caras — evaluar si no satura visualmente un espacio ya
-      angosto (256px de ancho).
+      angosto (256px de ancho). NO implementado en esta fase — se dejó
+      afuera para no saturar el espacio angosto del sidebar (256px), que
+      ya tiene título + ícono de borrar por item.
 
 **Criterio de aceptación**: mando varios mensajes en una conversación con
 Opus, el badge de costo sube después de cada turno, y el total coincide
