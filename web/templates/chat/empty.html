@@ -1,9 +1,13 @@
 {% extends "base.html" %}
+{% load core_extras %}
 
 {% block title %}Chat · chat_rag{% endblock %}
 
 {% block content %}
 <div class="flex h-full flex-col items-center justify-center text-center">
+  <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-border bg-background text-foreground">
+    {% icon "bot" size=22 %}
+  </div>
   <h1 class="mb-2 text-2xl font-semibold">¡Hola, {{ request.user.username }}!</h1>
   <p class="mb-6 max-w-md text-muted-foreground">
     Todavía no tienes conversaciones. Empieza una — Claude tiene acceso a los
@@ -14,9 +18,9 @@
     {% csrf_token %}
     <button
       type="submit"
-      class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+      class="flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
     >
-      Nueva conversación
+      {% icon "plus" size=16 %} Nueva conversación
     </button>
     {% comment %}
       Modelo de la nueva conversación (plan-v2.md, Fase 13): no se puede
@@ -39,9 +43,10 @@
         <input type="hidden" name="prompt" value="{{ prompt }}">
         <button
           type="submit"
-          class="w-full rounded-md border border-border p-3 text-left text-sm text-muted-foreground hover:border-ring hover:bg-accent hover:text-accent-foreground"
+          class="flex w-full items-start gap-2 rounded-md border border-border p-3 text-left text-sm text-muted-foreground hover:border-ring hover:bg-accent hover:text-accent-foreground"
         >
-          {{ prompt }}
+          {% icon "message-square" size=14 cls="mt-0.5 shrink-0" %}
+          <span>{{ prompt }}</span>
         </button>
       </form>
     {% endfor %}

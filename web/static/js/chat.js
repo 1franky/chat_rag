@@ -128,9 +128,31 @@ function chatPage(conversationId, initialCanRetry) {
       });
     },
 
+    // Markup en JS espejo de chat/_message.html (plan-v4.md, Fase 25) —
+    // un mensaje que llega en vivo durante un turno tiene que verse
+    // idéntico a uno cargado desde el historial en la próxima carga de
+    // página. `.msg`/`.msg-<rol>` es lo que resuelve el espaciado entre
+    // mensajes (ver el comentario en tailwind/input.css), no decorativo.
+    iconSvg(name, size = 14) {
+      return `<svg class="icon" width="${size}" height="${size}" aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
+    },
+
     appendBubble(role) {
       const wrapper = document.createElement('div');
-      wrapper.className = `mb-4 flex ${role === 'user' ? 'justify-end' : 'justify-start'}`;
+      wrapper.className = `msg msg-${role} flex ${role === 'user' ? 'justify-end' : 'justify-start'} gap-2`;
+
+      const avatar = document.createElement('div');
+      avatar.setAttribute('aria-hidden', 'true');
+      if (role === 'user') {
+        avatar.className =
+          'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground';
+        avatar.innerHTML = this.iconSvg('user');
+      } else {
+        avatar.className =
+          'mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-background text-foreground';
+        avatar.innerHTML = this.iconSvg('bot');
+      }
+
       const bubble = document.createElement('div');
       bubble.className =
         role === 'user'
@@ -147,20 +169,35 @@ function chatPage(conversationId, initialCanRetry) {
           '<span class="skeleton h-2 w-2 rounded-full bg-muted-foreground" style="animation-delay: 0.4s"></span>' +
           '</span>';
       }
-      wrapper.appendChild(bubble);
+
+      // Orden en el DOM: el avatar del usuario va DESPUÉS de la burbuja
+      // (queda a la derecha, mismo lado que el texto) — el del asistente
+      // va ANTES (a la izquierda). Mismo criterio que _message.html.
+      if (role === 'user') {
+        wrapper.appendChild(bubble);
+        wrapper.appendChild(avatar);
+      } else {
+        wrapper.appendChild(avatar);
+        wrapper.appendChild(bubble);
+      }
       this.$refs.messageList.appendChild(wrapper);
       return bubble;
     },
 
     addToolChip(data) {
       const wrapper = document.createElement('div');
-      wrapper.className = 'mb-4 flex justify-start';
+      wrapper.className = 'msg msg-tool flex justify-start';
       wrapper.dataset.toolUseId = data.id;
       const details = document.createElement('details');
       details.className = 'max-w-2xl rounded-md border border-border px-3 py-2 text-sm';
       const summary = document.createElement('summary');
-      summary.className = 'cursor-pointer select-none text-muted-foreground';
-      summary.textContent = `🔧 ${data.name}`;
+      summary.className = 'flex cursor-pointer items-center gap-1.5 select-none text-muted-foreground';
+      // innerHTML solo para el ícono (string fijo, no depende de `data`);
+      // el nombre de la tool va como nodo de texto aparte (no
+      // interpolado en el HTML) — es un dato que viaja por SSE, mejor no
+      // confiar en que nunca pueda traer markup.
+      summary.innerHTML = this.iconSvg('wrench');
+      summary.appendChild(document.createTextNode(` ${data.name}`));
       const args = document.createElement('pre');
       args.className = 'mt-2 overflow-x-auto text-xs';
       args.textContent = JSON.stringify(data.input, null, 2);

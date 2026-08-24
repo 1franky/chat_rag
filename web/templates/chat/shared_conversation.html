@@ -19,6 +19,16 @@
   <link rel="stylesheet" href="{% static 'css/vendor/highlight-github-dark.min.css' %}">
 </head>
 <body class="h-full bg-background font-sans text-foreground">
+  {% comment %}
+    Sprite de íconos (plan-v4.md, Fase 25) — chat/_message.html (reusado
+    tal cual acá, ver el comment de arriba) ahora depende de los íconos
+    `user`/`bot`/`wrench` del sprite para los avatares de cada mensaje;
+    sin este include quedarían `<use>` apuntando a símbolos inexistentes
+    (círculos vacíos, no un error, pero sí una regresión visual). El
+    resto del tratamiento visual de esta página en sí (fuera de lo que
+    ya trae `_message.html` gratis) sigue siendo tarea de la Fase 26.
+  {% endcomment %}
+  {% include "partials/icon_sprite.html" %}
   <div class="mx-auto flex h-full max-w-2xl flex-col">
     <header class="border-b border-border px-4 py-3">
       <p class="text-xs text-muted-foreground">Conversación compartida de solo lectura</p>
