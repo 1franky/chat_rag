@@ -27,8 +27,17 @@
 
 /* Tokens de diseño estilo shadcn: colores semánticos en vez de slate-*
    hardcodeado en cada template, para poder retocar la paleta en un solo
-   lugar. Valores elegidos para calzar con lo que ya había (slate + rojo
-   para destructive) y no pegar un salto visual. */
+   lugar. Base slate + rojo para destructive, sin cambios.
+
+   `--primary`/`--primary-foreground` SÍ cambiaron (plan-v4.md, Fase 23):
+   antes eran gris neutro (mismo tono que `--foreground`, sin ningún
+   acento de marca) — ahora es violeta, elegido por el usuario entre 4
+   candidatos (azul/índigo/violeta/cian) presentados con un preview real
+   sobre estos mismos tokens. Los dos valores (claro/oscuro) pasan
+   contraste AA (>=4.5:1) para texto sólido encima: 5.7:1 en claro,
+   6.6:1 en oscuro. Ámbar/esmeralda/rojo quedaron afuera de las opciones
+   a propósito — ya están tomados como semántica de estado en
+   `documents.html` (pendiente/indexado/error). */
 :root {
   --background: #ffffff;
   --foreground: #0f172a;
@@ -38,8 +47,10 @@
   --muted-foreground: #64748b;
   --border: #e2e8f0;
   --input: #cbd5e1;
-  --ring: #94a3b8;
-  --primary: #0f172a;
+  /* Mismo valor que --primary (patrón shadcn habitual): el foco de
+     inputs/botones queda "de marca" en vez del gris genérico de antes. */
+  --ring: #7c3aed;
+  --primary: #7c3aed;
   --primary-foreground: #ffffff;
   --accent: #e2e8f0;
   --accent-foreground: #0f172a;
@@ -58,8 +69,8 @@
   --muted-foreground: #94a3b8;
   --border: #1e293b;
   --input: #334155;
-  --ring: #64748b;
-  --primary: #f1f5f9;
+  --ring: #a78bfa;
+  --primary: #a78bfa;
   --primary-foreground: #0f172a;
   --accent: #1e293b;
   --accent-foreground: #f1f5f9;
@@ -92,9 +103,31 @@
   --color-destructive-foreground: var(--destructive-foreground);
   --color-sidebar: var(--sidebar);
 
+  /* Escala de radius revisada en la Fase 23: ya cubre los 3 casos reales
+     del proyecto (sm: badges/chips, md: inputs/botones/mensajes, lg:
+     cards/popovers) — se deja como estaba, no hacía falta un 4to nivel. */
   --radius-sm: calc(var(--radius) - 0.25rem);
   --radius-md: var(--radius);
   --radius-lg: calc(var(--radius) + 0.25rem);
+}
+
+/* Íconos vendoreados de Lucide (plan-v4.md, Fase 23) — insertados vía
+   `<svg class="icon"><use href="#icon-name"></use></svg>` (ver el tag
+   `{% icon %}`, apps/core/templatetags/core_extras.py). El SVG fuente de
+   Lucide trae fill/stroke como atributos en la etiqueta <svg> exterior,
+   que el sprite (`scripts/build_icon_sprite.py`) recorta al armar los
+   <symbol> — se repone acá vía CSS en el wrapper, que sí cascadea a
+   través de <use> hasta los <path> referenciados. `stroke: currentColor`
+   es lo que permite que `text-destructive`/`hover:text-foreground`/etc.
+   tiñan el ícono igual que a cualquier texto, sin variantes por color. */
+.icon {
+  display: inline-block;
+  vertical-align: -0.15em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /* Alpine no trae este CSS: sin esto, x-cloak no oculta nada hasta que

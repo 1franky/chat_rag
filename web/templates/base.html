@@ -1,4 +1,4 @@
-{% load static %}
+{% load static core_extras %}
 <!DOCTYPE html>
 <html lang="es" class="h-full">
 <head>
@@ -38,6 +38,15 @@
   {% block extra_head %}{% endblock %}
 </head>
 <body class="h-full bg-background font-sans text-foreground" data-chat-home-url="{% url 'chat:home' %}">
+  {% comment %}
+    Sprite de íconos (plan-v4.md, Fase 23) — un solo <svg style="display:
+    none"> con todos los <symbol> vendoreados de Lucide, incluido una
+    sola vez acá; cada uso real es {% templatetag openblock %} icon
+    "nombre" {% templatetag closeblock %} (apps/core/templatetags/
+    core_extras.py), liviano porque solo referencia el símbolo
+    (<use href="#icon-nombre">), sin pagar una request HTTP por ícono.
+  {% endcomment %}
+  {% include "partials/icon_sprite.html" %}
   <div
     class="flex h-full"
     x-data="{ sidebarOpen: true }"
@@ -130,7 +139,16 @@
           aria-label="Mostrar/ocultar barra lateral (Ctrl/Cmd+B)"
           title="Mostrar/ocultar barra lateral (Ctrl/Cmd+B)"
         >
-          ☰
+          {% comment %}
+            Sin `label=` acá a propósito: el nombre accesible del control
+            ya lo da el `aria-label` del <button> (patrón estándar para un
+            botón cuyo único contenido es un ícono) — pasarle `label`
+            también al ícono duplicaría el anuncio en lectores de
+            pantalla (role="img" anidado dentro de un elemento que ya
+            tiene su propio nombre). `{% icon %}` sin `label` queda
+            aria-hidden, puramente decorativo.
+          {% endcomment %}
+          {% icon "menu" size=18 %}
         </button>
         {% include "partials/theme_toggle.html" %}
       </header>
