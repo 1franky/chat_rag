@@ -1,7 +1,16 @@
+{% load core_extras %}
 {% comment %}
   Contenedor de toasts: los mensajes de Django (server-side) se vuelcan acá
   al cargar la página; los que dispara JS directo llaman a
   `Alpine.store('toast').push(...)` (ver static/js/toast.js).
+
+  Paleta (plan-v4.md, Fase 26): antes un "success" no tenía ningún color
+  propio (mismo `border-border`/`bg-card` neutro que cualquier cosa) — se
+  le agregó el mismo tratamiento esmeralda que ya usa el badge "Indexado"
+  de `_document_card.html` (`ingesta_extras.py::status_badge_class`), en
+  vez de un color de éxito nuevo e inconsistente con el resto de la app.
+  El ícono (`check`/`circle-alert`) reusa los mismos dos que ya se
+  vendorearon para los badges de estado de documentos.
 {% endcomment %}
 <div
   x-data
@@ -22,11 +31,13 @@
       x-transition:leave-start="opacity-100"
       x-transition:leave-end="opacity-0"
       class="pointer-events-auto flex items-start gap-2 rounded-md border px-3 py-2 text-sm shadow-lg"
-      :class="item.type === 'error' ? 'border-destructive/30 bg-destructive text-destructive-foreground' : 'border-border bg-card text-card-foreground'"
+      :class="item.type === 'error' ? 'border-destructive/30 bg-destructive text-destructive-foreground' : 'border-border bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'"
     >
+      <span x-show="item.type !== 'error'" class="mt-0.5 shrink-0">{% icon "check" size=14 %}</span>
+      <span x-show="item.type === 'error'" x-cloak class="mt-0.5 shrink-0">{% icon "circle-alert" size=14 %}</span>
       <span class="flex-1" x-text="item.text"></span>
       <button type="button" @click="$store.toast.remove(item.id)" class="opacity-70 hover:opacity-100" aria-label="Cerrar">
-        ✕
+        {% icon "x" size=14 %}
       </button>
     </div>
   </template>

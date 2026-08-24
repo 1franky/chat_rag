@@ -287,28 +287,69 @@ el markup/CSS/JS de presentación sobre un flujo que ya funcionaba.
 
 ---
 
-### Fase 26 — Documentos, configuración y resto de pantallas
+### Fase 26 — Documentos, configuración y resto de pantallas ✅
 
 **Objetivo**: extender la identidad nueva al resto de la app para que no
 quede la sensación de "dos apps distintas" (chat rediseñado vs. el
 resto igual que antes).
 
 Tareas:
-- [ ] `documents.html` / `_document_card.html`: cards con el nuevo
-      sistema de espaciado/color, íconos por tipo de archivo o estado
-      (pendiente/indexado/error) en vez de solo texto/color de badge.
-- [ ] `accounts/settings.html`, `accounts/login.html`: mismo tratamiento
-      de inputs/botones que el resto.
-- [ ] `404.html`/`500.html`/`shared_conversation.html`: revisar que no
-      queden visualmente desalineados del resto (son standalone, no
-      extienden `base.html`, hay que portar los tokens/fuente a mano).
-- [ ] `partials/toasts.html`: revisar que el estilo de los toasts
-      combine con la paleta nueva.
+- [x] `documents.html` / `_document_card.html` / `_chat_attachment_chip.html`:
+      ícono por ESTADO (pendiente/procesando/indexado/error — filtro
+      nuevo `ingesta_extras.py::status_icon`, mismo diccionario que
+      `status_badge_class` ya tenía por color), con `animate-spin` en el
+      de "procesando" (verificado con un objeto `Document` sintético,
+      no había ningún documento real en ese estado en la cuenta al
+      probar). Tabs de colecciones: ✎/✕ reemplazados por íconos
+      `pencil`/`x`. Dropzone: ícono `upload` arriba del texto. Botón
+      "Borrar" de cada card e ícono "+ Crear" con íconos reales. Estado
+      vacío con ícono `files`.
+- [x] `accounts/login.html`: mismo mark de marca que el sidebar (cuadrado
+      `bg-primary` + ícono `message-square`) antes de loguearse — los
+      inputs ya estaban estilizados consistentemente desde antes
+      (`TailwindStyledFormMixin` en `apps/accounts/forms.py`, sin cambios
+      acá). `accounts/settings.html`: ícono `trash-2` en el botón
+      destructivo de "Zona de peligro".
+- [x] `404.html`: ya extendía `base.html` (hereda toda la identidad
+      gratis, sidebar incluido) — solo se le agregó un ícono
+      `circle-alert` arriba del mensaje, mismo tratamiento que los
+      demás estados vacíos/de error de la app. `500.html` (standalone a
+      propósito, sin Tailwind ni fuente self-hosted — ver el comentario
+      del template): se portó a mano el color de marca violeta como
+      variable CSS nueva (`--primary`/`--primary-fg`, claro y oscuro) y
+      el botón pasó a usarlo en vez del contraste neutro que tenía —
+      es el único token que cambió desde que se escribió esa página, el
+      resto de la paleta neutra siguió igual. `shared_conversation.html`
+      ya se había arreglado en la Fase 25 (el include del sprite que le
+      faltaba).
+- [x] `partials/toasts.html`: un toast "success" no tenía ningún color
+      propio antes (mismo `border-border`/`bg-card` neutro que cualquier
+      otra cosa) — ahora usa el mismo esmeralda que ya usa el badge
+      "Indexado" de documentos (reuso del token existente, no un color
+      de éxito nuevo e inconsistente), con ícono `check`; "error" suma
+      ícono `circle-alert`. Botón de cerrar (✕) reemplazado por el
+      ícono `x`.
+- [x] 6 íconos nuevos vendoreados (`pencil`, `check`, `clock`, `upload`,
+      `loader-circle`, `circle-alert`), sprite en 27 íconos total.
 
-**Criterio de aceptación**: recorrido visual de todas las pantallas de
-la app (login, home vacío, conversación, documentos, configuración,
-página compartida, 404) en claro y oscuro — mismo lenguaje visual en
-todas, sin ninguna pantalla "vieja" mezclada con las rediseñadas.
+**Criterio de aceptación**: probado contra el stack Docker real (build +
+up de `chat-web`, Tailwind recompilado, `animate-spin` confirmado en el
+CSS compilado) con una sesión real (limpiada al terminar): `/login/`
+(sin sesión) sirve el sprite completo y el mark de marca, `/documentos/`
+con datos reales de la cuenta confirma los íconos de estado
+(`clock`/`check`/`circle-alert` presentes; `loader-circle` sin ningún
+uso real porque no había ningún documento "procesando" en ese momento —
+se verificó aparte con `render_to_string` y un objeto `Document`
+sintético que el ícono Y la clase `animate-spin` salen juntos),
+`pencil`/`x`/`plus`/`upload`/`files`/`trash-2` todos presentes,
+`/settings/` con el botón destructivo, `/esto-no-existe/` (404) con el
+ícono nuevo. `500.html` verificado con `render_to_string` (sin request,
+mismo camino que usa Django de verdad para este handler) — confirma que
+ambos valores de `--primary` (claro/oscuro) están en el HTML. Toasts
+verificados a nivel de markup servido (`item.type !== 'error'`/`===
+'error'` con sus íconos respectivos, botón de cerrar con ícono `x`) —
+no se pudo ver la animación de entrada/salida ni disparar uno real sin
+browser (`claude-in-chrome` no conectado en la sesión).
 
 ---
 

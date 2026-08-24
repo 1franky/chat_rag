@@ -1,4 +1,4 @@
-{% load ingesta_extras %}
+{% load ingesta_extras core_extras %}
 <div
   id="document-{{ document.id }}"
   class="rounded-lg border border-border p-4 shadow-sm"
@@ -10,7 +10,12 @@
 >
   <div class="mb-1 flex items-center justify-between gap-2">
     <span class="truncate text-sm font-medium" title="{{ document.filename }}">{{ document.filename }}</span>
-    <span class="shrink-0 rounded px-2 py-0.5 text-xs {{ document.status|status_badge_class }}">
+    <span class="flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-xs {{ document.status|status_badge_class }}">
+      {% if document.status == "processing" %}
+        {% icon document.status|status_icon size=12 cls="animate-spin" %}
+      {% else %}
+        {% icon document.status|status_icon size=12 %}
+      {% endif %}
       {{ document.get_status_display }}
     </span>
   </div>
@@ -53,8 +58,8 @@
     onsubmit="return confirm('¿Borrar {{ document.filename|escapejs }}?');"
   >
     {% csrf_token %}
-    <button type="submit" class="text-xs text-muted-foreground hover:text-destructive">
-      Borrar
+    <button type="submit" class="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive">
+      {% icon "trash-2" size=12 %} Borrar
     </button>
   </form>
 </div>

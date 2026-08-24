@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load core_extras %}
 
 {% block title %}Configuración · chat_rag{% endblock %}
 
@@ -53,9 +54,9 @@
       {% csrf_token %}
       <button
         type="submit"
-        class="rounded-md border border-destructive bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:opacity-90"
+        class="flex items-center gap-1.5 rounded-md border border-destructive bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground hover:opacity-90"
       >
-        Borrar todos mis datos
+        {% icon "trash-2" size=15 %} Borrar todos mis datos
       </button>
     </form>
   </section>

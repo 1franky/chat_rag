@@ -7,6 +7,13 @@
   dependen de la clase `.dark` que pone Alpine), ni Tailwind: todo inline y
   con `prefers-color-scheme` puro, para que se vea bien incluso si el
   problema es justamente algo roto en el deploy de estáticos.
+
+  `--primary` (plan-v4.md, Fase 26) se portó a mano acá con el mismo valor
+  violeta de `tailwind/input.css` (Fase 23) — es el único token que
+  cambió desde que se escribió esta página, el resto de los valores
+  siguen calzando con la paleta neutra de siempre. Sin agregar la fuente
+  self-hosted (InterVariable) ni ninguna otra dependencia de estáticos:
+  esta página existe justamente para el caso en que esos estáticos fallen.
 {% endcomment %}
 <!DOCTYPE html>
 <html lang="es">
@@ -15,9 +22,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Error del servidor · chat_rag</title>
   <style>
-    :root { --bg: #ffffff; --fg: #0f172a; --muted: #64748b; --border: #e2e8f0; }
+    :root { --bg: #ffffff; --fg: #0f172a; --muted: #64748b; --border: #e2e8f0; --primary: #7c3aed; --primary-fg: #ffffff; }
     @media (prefers-color-scheme: dark) {
-      :root { --bg: #0f172a; --fg: #f1f5f9; --muted: #94a3b8; --border: #1e293b; }
+      :root { --bg: #0f172a; --fg: #f1f5f9; --muted: #94a3b8; --border: #1e293b; --primary: #a78bfa; --primary-fg: #0f172a; }
     }
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; }
@@ -41,8 +48,8 @@
       font-size: 0.875rem;
       font-weight: 500;
       text-decoration: none;
-      background: var(--fg);
-      color: var(--bg);
+      background: var(--primary);
+      color: var(--primary-fg);
     }
     a.button:hover { opacity: 0.9; }
   </style>
