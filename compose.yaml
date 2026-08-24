@@ -103,17 +103,44 @@ services:
       RERANK_THREADS: "1"
       MODEL_CACHE_DIR: /app/models
       DJANGO_SQLITE_PATH: /data/sqlite/db.sqlite3
+      # Reportería (plan-v3.md, Fase 20) — mismo directorio del host que
+      # settings.REPORTS_DIR de chat-web (MEDIA_ROOT / "reports"), visto
+      # desde acá con su propio mount RW más abajo.
+      REPORTS_DIR: /data/media/reports
+      # PUBLIC_BASE_URL (para armar el link de descarga que devuelve
+      # report_generate_table) NO se declara acá a propósito — mismo
+      # criterio que chat-web más abajo, que tampoco la declara pese a
+      # usarla (config/settings.py): `env_file: .env` ya la inyecta sola,
+      # no hace falta repetirla. A diferencia de chat-web, acá no hay
+      # request de donde caer si faltara — ver el comentario en
+      # rag-mcp/server.py.
     volumes:
       - models-cache:/app/models
       # rag_list_documents lee filename/status/chunk_count de la tabla
       # Document de Django directo por sqlite3 (rag_shared.documents_db) —
       # solo lectura, chat-web/chat-worker son los únicos que escriben ahí.
       - ./data/sqlite:/data/sqlite:ro
+      # RW (a diferencia del mount de arriba) — acá SÍ escribe este
+      # contenedor: los archivos que arma report_generate_table. Acotado a
+      # la subcarpeta reports/, no todo ./data/media (que también tiene
+      # los documentos subidos a /documentos/, sin necesidad de que
+      # chat-rag-mcp los toque).
+      - ./data/media/reports:/data/media/reports
     expose: ["8100"]
     read_only: true
     tmpfs: [/tmp:size=32m]
     security_opt: [no-new-privileges:true]
     cap_drop: [ALL]
+    # DAC_OVERRIDE (mismo motivo que chat-worker más abajo): corre como
+    # root sin `user:` propio, pero ./data/media/reports es un bind mount
+    # del host que pertenece a tu usuario, no a root — sin esta capability
+    # (que cap_drop: [ALL] saca por default), root no puede saltarse esos
+    # permisos de archivo y la escritura falla. Efecto secundario: los
+    # archivos que este contenedor escribe quedan con dueño root:root en
+    # el host, a diferencia del resto de ./data/media (dueño de tu
+    # usuario) — no es un problema porque chat-web solo necesita LEERLOS
+    # para servir la descarga, no modificarlos.
+    cap_add: [DAC_OVERRIDE]
     depends_on:
       chat-qdrant: { condition: service_healthy }
     healthcheck:

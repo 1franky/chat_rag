@@ -437,47 +437,70 @@ acá solo se le da una forma de bajarlo como archivo real en vez de
 pegarlo en el chat.
 
 Tareas:
-- [ ] `data/media/reports/` — nuevo subdirectorio del volumen `media`
-      existente. `compose.yaml::chat-rag-mcp`: agregar mount
+- [x] `data/media/reports/` — nuevo subdirectorio del volumen `media`
+      existente. `compose.yaml::chat-rag-mcp`: mount nuevo
       `./data/media/reports:/data/media/reports` (RW, a diferencia del
-      mount `:ro` que ya tiene para `data/sqlite`) y la env var
-      `PUBLIC_BASE_URL` (hoy solo la lee `chat-web`).
-- [ ] `rag_shared/reports.py` (nuevo módulo, mismo criterio que
-      `rag_shared/embeddings.py`/`vector_store.py` — compartido, aunque
-      de momento solo lo use `chat-rag-mcp`): funciones `write_txt`,
-      `write_csv`, `write_xlsx` — reciben datos ya estructurados
-      (`list[dict]` o `list[list]` + headers) y devuelven la ruta del
-      archivo escrito bajo un nombre `<uuid4>.<ext>`. `write_xlsx` usa
-      `openpyxl.Workbook()` (ya es dependencia de `rag_shared`, hoy solo
-      se usa para leer).
-- [ ] `rag-mcp/server.py`: tool nueva `report_generate_table(format:
+      mount `:ro` que ya tiene para `data/sqlite`) + `cap_add:
+      [DAC_OVERRIDE]` (mismo motivo que ya tenía `chat-worker`: corre
+      como root sin `user:` propio, pero el bind mount es del host —
+      sin esa capability, que `cap_drop: [ALL]` saca por default, la
+      escritura falla). `PUBLIC_BASE_URL` no se declaró explícita en
+      `environment:` — mismo criterio que `chat-web`, que tampoco la
+      declara pese a usarla: `env_file: .env` ya la inyecta sola.
+      **Gotcha operativo encontrado** (no estaba en el plan): los
+      archivos que escribe `chat-rag-mcp` quedan con dueño `root:root`
+      en el host (root real, no mapeado) — de solo lectura para tu
+      usuario. No rompe la descarga (el archivo es world-readable), pero
+      borrarlos a mano desde el host falla con "Permission denied"; hay
+      que borrarlos desde el propio contenedor
+      (`docker compose exec chat-rag-mcp rm ...`) o con `sudo`.
+- [x] `rag_shared/reports.py`: `write_txt`, `write_csv`, `write_xlsx` —
+      reciben datos ya estructurados (`list[str]` de columnas +
+      `list[list[str]]` de filas) y devuelven la ruta del archivo escrito
+      bajo un nombre `<uuid4>.<ext>`. `write_xlsx` usa
+      `openpyxl.Workbook()` (ya era dependencia de `rag_shared`, hasta
+      ahora solo se usaba para leer). CSV sin línea de título (rompería
+      un import directo a Excel/pandas); TXT y XLSX sí la llevan.
+- [x] `rag-mcp/server.py`: tool nueva `report_generate_table(format:
       Literal["txt","csv","xlsx"], title: str, columns: list[str], rows:
-      list[list[str]]) -> str` (devuelve la URL completa de descarga,
-      armada con `PUBLIC_BASE_URL`). Agregar al `SYSTEM_PROMPT` de
-      `chat/agent.py` cuándo usarla (ej. "cuando el usuario pida
-      explícitamente un archivo/reporte/exportar datos en vez de verlos
-      en el chat") **y aclarar explícitamente que `generate_report` de
-      `data-platform` NO se usa para esto** (ver la nota de arquitectura
-      más arriba) — sin esa aclaración nada impide que Claude la elija
-      igual, ya que las dos aparecen como tools disponibles.
-- [ ] Vista Django nueva para servir la descarga — evaluar si conviene
-      una app `apps/reports/` propia (más limpio si las Fases 21/22
-      suman más lógica acá) o un par de funciones sueltas en
-      `apps/core/views.py` (más simple si esto no crece mucho). Sirve
-      `data/media/reports/<archivo>` con `FileResponse(...,
-      as_attachment=True)`; protegida por el `@login_required` normal
-      del sitio (sin modelo de dueño — es de un solo usuario).
-- [ ] Sin tracking en DB para este v1 (ver la nota de arquitectura más
-      arriba) — los archivos viejos se acumulan en el volumen sin
-      límite; anotar como conocido, evaluar limpieza (cron simple tipo
-      "borrar lo de más de N días", similar en espíritu al de
-      `scripts/backup.sh` de la Fase 9) si en la práctica molesta.
+      list[list[str]]) -> str` (URL completa de descarga, armada con
+      `PUBLIC_BASE_URL` + el prefijo `/reportes` — tiene que coincidir a
+      mano con la URL registrada del lado de Django, documentado en
+      ambos archivos). `SYSTEM_PROMPT` de `chat/agent.py` actualizado:
+      cuándo usarla, **y aclara explícitamente que `generate_report` de
+      `data-platform` NO se usa nunca** — confirmado en la prueba real
+      que Claude no la menciona ni la elige.
+- [x] Vista de descarga: se optó por funciones sueltas en
+      `apps/core/views.py` (no una app `apps/reports/` propia) — sin
+      tracking en DB no hay modelo/admin/nada que justifique una app
+      nueva todavía; se reevalúa si las Fases 21/22 suman lógica real.
+      `download_report` sirve `REPORTS_DIR/<filename>` con
+      `FileResponse(..., as_attachment=True)`, sin `@login_required`
+      explícito (mismo criterio que `metrics`: el `LoginRequiredMiddleware`
+      global ya cubre todo lo que no esté en `EXEMPT_PATH_PREFIXES`).
+      Defensa contra path traversal: `.resolve()` + confirmar que el
+      resultado sigue adentro de `REPORTS_DIR`, aunque el `<str:filename>`
+      de Django ya bloquea "/" en el segmento.
+- [x] Sin tracking en DB para este v1, tal como preveía el plan — los
+      archivos viejos se acumulan en el volumen sin límite; queda
+      anotado como conocido (mismo tratamiento que el gotcha de dueño
+      root de arriba).
 
-**Criterio de aceptación**: le pido al chat el reporte de clientes
-descrito arriba (dos consultas vía `data-platform` + el cruce), me
-responde con un link, lo clickeo y se descarga un .xlsx real con las
-filas correctas — comparado a mano contra lo que devuelven las dos
-queries por separado.
+**Criterio de aceptación**: verificado contra el stack Docker real (host
+conectado a `data-platform-mcp`, conexión demo `postgres-demo`, sin tocar
+las conexiones de datos reales de clientes): le pedí al chat que listara
+las tablas, encontrara la más chica y la exportara a Excel — llamó a
+`mcp__data-platform__list_tables` + `execute_read_query` y después a
+`mcp__rag__report_generate_table` (nunca `generate_report`), devolvió un
+link con el dominio público real
+(`https://chat.franciscolopez.uk/reportes/<uuid4>.xlsx`). Descargado y
+verificado con `openpyxl` directo: 3 filas, contenido exacto. Confirmado
+además pidiéndole en el mismo hilo el `SELECT * FROM clientes` crudo sin
+generar archivo — coincide exactamente con lo que quedó en el Excel.
+También verificados los casos borde de la vista de descarga: 404 con
+archivo inexistente, 404 con intento de path traversal, 302 (a login) sin
+sesión iniciada. Datos de prueba (archivos, conversación, sesión)
+borrados al terminar.
 
 ---
 
