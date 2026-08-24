@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static core_extras %}
 
 {% block title %}Documentos · chat_rag{% endblock %}
 
@@ -41,8 +41,8 @@
         >
           {% csrf_token %}
           <input type="hidden" name="name">
-          <button type="submit" class="px-1 py-1.5 text-xs text-muted-foreground hover:text-foreground" title="Renombrar «{{ collection.name }}»" aria-label="Renombrar «{{ collection.name }}»">
-            ✎
+          <button type="submit" class="px-1 py-1.5 text-muted-foreground hover:text-foreground" title="Renombrar «{{ collection.name }}»" aria-label="Renombrar «{{ collection.name }}»">
+            {% icon "pencil" size=12 %}
           </button>
         </form>
         <form
@@ -51,8 +51,8 @@
           onsubmit="return confirm('¿Borrar la colección «{{ collection.name|escapejs }}»? Los documentos no se borran, solo quedan sin colección.');"
         >
           {% csrf_token %}
-          <button type="submit" class="px-1 py-1.5 pr-2 text-xs text-muted-foreground hover:text-destructive" title="Borrar «{{ collection.name }}»" aria-label="Borrar «{{ collection.name }}»">
-            ✕
+          <button type="submit" class="px-1 py-1.5 pr-2 text-muted-foreground hover:text-destructive" title="Borrar «{{ collection.name }}»" aria-label="Borrar «{{ collection.name }}»">
+            {% icon "x" size=12 %}
           </button>
         </form>
       </div>
@@ -65,8 +65,8 @@
         placeholder="Nueva colección…"
         class="w-36 rounded-md border border-input bg-transparent px-2 py-1 text-sm"
       >
-      <button type="submit" class="rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground">
-        + Crear
+      <button type="submit" class="flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground">
+        {% icon "plus" size=14 %} Crear
       </button>
     </form>
   </div>
@@ -78,6 +78,9 @@
     @dragleave.prevent="dragging = false"
     @drop.prevent="dragging = false; handleFiles($event.dataTransfer.files)"
   >
+    <div class="mb-3 flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background text-muted-foreground">
+      {% icon "upload" size=18 %}
+    </div>
     <p class="mb-3 text-muted-foreground">Arrastra archivos aquí, o</p>
     <label
       class="cursor-pointer rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
@@ -136,7 +139,8 @@
     {% for document in documents %}
       {% include "ingesta/_document_card.html" %}
     {% empty %}
-      <div data-empty-state class="col-span-full rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+      <div data-empty-state class="col-span-full flex flex-col items-center gap-2 rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+        {% icon "files" size=20 %}
         {% if active_collection %}
           No hay documentos en «{{ active_collection.name }}» todavía.
         {% elif filter_none %}

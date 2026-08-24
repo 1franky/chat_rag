@@ -26,7 +26,12 @@
     <div class="flex items-center gap-1.5">
       {% icon "paperclip" size=14 %}
       <span>{{ document.filename }}</span>
-      <span class="rounded px-1.5 py-0.5 text-xs {{ document.status|status_badge_class }}">
+      <span class="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs {{ document.status|status_badge_class }}">
+        {% if document.status == "processing" %}
+          {% icon document.status|status_icon size=11 cls="animate-spin" %}
+        {% else %}
+          {% icon document.status|status_icon size=11 %}
+        {% endif %}
         {{ document.get_status_display }}
       </span>
     </div>

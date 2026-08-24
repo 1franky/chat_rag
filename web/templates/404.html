@@ -1,9 +1,13 @@
 {% extends "base.html" %}
+{% load core_extras %}
 
 {% block title %}Página no encontrada · chat_rag{% endblock %}
 
 {% block content %}
 <div class="flex h-full flex-col items-center justify-center text-center">
+  <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-border bg-background text-foreground">
+    {% icon "circle-alert" size=22 %}
+  </div>
   <p class="mb-2 text-sm font-medium text-muted-foreground">404</p>
   <h1 class="mb-2 text-2xl font-semibold">No encontramos esta página</h1>
   <p class="mb-6 max-w-md text-muted-foreground">
