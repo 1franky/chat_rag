@@ -178,6 +178,16 @@ STATIC_ROOT = Path(os.environ.get("STATIC_ROOT", BASE_DIR / "staticfiles"))
 MEDIA_URL = "media/"
 MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", BASE_DIR / "media"))
 
+# Archivos de reportería generados por las tools report_* de chat-rag-mcp
+# (plan-v3.md, Fase 20) — subdirectorio fijo de MEDIA_ROOT, no una env var
+# propia: chat-rag-mcp escribe ahí con su propia REPORTS_DIR
+# (rag_shared/reports.py), apuntada al mismo path vía el mount de
+# compose.yaml (`./data/media/reports:/data/media/reports`) — mismo
+# directorio del host visto desde los dos contenedores. Sin tracking en
+# DB en este v1: el nombre de archivo (`<uuid4>.<ext>`) es la única
+# referencia, ver apps/core/views.py::download_report.
+REPORTS_DIR = MEDIA_ROOT / "reports"
+
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},

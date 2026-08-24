@@ -9,13 +9,14 @@ from __future__ import annotations
 
 import asyncio
 import os
+from typing import Literal
 
 import structlog
 from fastmcp import FastMCP
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from rag_shared import documents_db, vector_store
+from rag_shared import documents_db, reports, vector_store
 from rag_shared.embeddings import embed_query, embed_query_sparse, rerank
 from rag_shared.logging import configure_logging
 from rag_shared.models import Chunk, CollectionMeta, DocumentMeta
@@ -24,6 +25,18 @@ configure_logging(service="chat-rag-mcp")
 logger = structlog.get_logger()
 
 mcp = FastMCP("chat-rag")
+
+# Base pública para armar el link de descarga de un reporte (plan-v3.md,
+# Fase 20) — mismo patrón que PUBLIC_BASE_URL en chat-web
+# (config/settings.py), pero acá no hay Django/request de donde caer a
+# request.build_absolute_uri() si falta: sin setearla en .env, la URL
+# devuelta queda relativa (sirve para debug local, no para un link
+# clickeable real).
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
+# Tiene que coincidir con el prefijo registrado en
+# apps/core/urls.py::download_report (chat-web es quien sirve el archivo,
+# no este servidor — ver la nota de REPORTS_DIR en rag_shared/reports.py).
+REPORTS_URL_PATH = "/reportes"
 
 # Cuántos candidatos de más pedirle a la fusión RRF antes de rerankear y
 # cortar a `top_k` (plan-v3.md, Fase 17) — el cross-encoder puede promover
@@ -125,6 +138,33 @@ async def rag_list_collections() -> list[CollectionMeta]:
 async def rag_get_document_chunks(document_id: str) -> list[Chunk]:
     """Devuelve todos los chunks de un documento indexado, en orden."""
     return await vector_store.get_document_chunks(document_id)
+
+
+@mcp.tool
+async def report_generate_table(
+    format: Literal["txt", "csv", "xlsx"], title: str, columns: list[str], rows: list[list[str]]
+) -> str:
+    """Genera un archivo descargable con datos tabulares ya armados
+    (plan-v3.md, Fase 20) y devuelve la URL pública para descargarlo.
+
+    Usar SOLO cuando el usuario pida explícitamente un archivo/reporte/
+    exportar datos (ej. "dame esto en un Excel", "expórtamelo") — no para
+    mostrar resultados normales en el chat, ahí alcanza con responder en
+    texto/markdown como siempre. `rows` tiene que venir ya armado por vos
+    (ej. el cruce/diff de resultados de dos consultas de `data-platform`) —
+    esta tool solo escribe el archivo, no consulta ni transforma datos.
+
+    `format`: "csv"/"xlsx" para abrir en Excel u otra planilla, "txt" para
+    texto plano simple. Todas las celdas se guardan como texto.
+    """
+    writer = {"txt": reports.write_txt, "csv": reports.write_csv, "xlsx": reports.write_xlsx}[format]
+    # CPU/IO-bound (escritura a disco, openpyxl arma el .xlsx en memoria
+    # antes de guardarlo) — a thread aparte, mismo criterio que el resto de
+    # las funciones bloqueantes de este módulo.
+    path = await asyncio.to_thread(writer, title, columns, rows)
+    url = f"{PUBLIC_BASE_URL}{REPORTS_URL_PATH}/{path.name}"
+    logger.info("report_generated", format=format, filename=path.name, columns=len(columns), rows=len(rows))
+    return url
 
 
 @mcp.custom_route("/health", methods=["GET"])

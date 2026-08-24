@@ -1,5 +1,6 @@
+from django.conf import settings
 from django.db.models import Count
-from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.http import FileResponse, Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect
 from django.utils import timezone
 
@@ -7,6 +8,27 @@ from django.utils import timezone
 def healthz(request: HttpRequest) -> HttpResponse:
     """Endpoint de healthcheck (sin auth). Usado por el healthcheck de chat-web en compose.yaml."""
     return HttpResponse("ok", content_type="text/plain")
+
+
+def download_report(request: HttpRequest, filename: str) -> HttpResponse:
+    """`/reportes/<filename>`: sirve un archivo generado por las tools
+    `report_*` de chat-rag-mcp (plan-v3.md, Fase 20). Sin modelo en Django
+    (sin tracking en DB en este v1, ver la nota de arquitectura del plan)
+    — el nombre de archivo (`<uuid4>.<ext>`, armado por
+    `rag_shared/reports.py`) es la única referencia.
+
+    Sin @login_required explícito, mismo criterio que `metrics`:
+    LoginRequiredMiddleware ya protege todo lo que no esté en
+    EXEMPT_PATH_PREFIXES, y este path no está ahí.
+    """
+    path = (settings.REPORTS_DIR / filename).resolve()
+    # Defensa contra path traversal: aunque el <str:filename> de la URL no
+    # deja pasar "/" (así que un ".." solo no alcanzaría para escapar del
+    # directorio), resolver la ruta y confirmar que sigue adentro de
+    # REPORTS_DIR no depende de esa garantía del router.
+    if settings.REPORTS_DIR.resolve() not in path.parents or not path.is_file():
+        raise Http404
+    return FileResponse(path.open("rb"), as_attachment=True, filename=path.name)
 
 
 def root(request: HttpRequest) -> HttpResponse:
