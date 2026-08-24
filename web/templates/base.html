@@ -83,48 +83,37 @@
         </a>
       </div>
 
-      <nav class="mt-2 min-h-0 flex-1 space-y-3 overflow-y-auto px-2 pb-2">
-        {% for group_label, conversations in sidebar_conversations.items %}
-          <div>
-            <p class="px-3 pb-1 text-xs font-medium text-muted-foreground">{{ group_label }}</p>
-            {% for conv in conversations %}
-              {% comment %}
-                Wrapper en vez de un <a> suelto: un <a> no puede contener un
-                <button> (HTML inválido), y desde acá se puede borrar la
-                conversación sin necesidad de abrirla primero (plan-v2.md,
-                Fase 8).
-              {% endcomment %}
-              <div
-                class="flex items-center rounded-md text-sm hover:bg-accent hover:text-accent-foreground {% if conv.id == conversation.id %}bg-accent text-accent-foreground{% endif %}"
-                x-data="sidebarConversationItem('{{ conv.id }}', '{% url 'chat:delete' conv.id %}')"
-              >
-                <a
-                  href="{% url 'chat:detail' conv.id %}"
-                  class="block flex-1 truncate px-3 py-2"
-                  title="{{ conv.title }}"
-                >
-                  {{ conv.title|default:"Sin título" }}
-                </a>
-                {% comment %}
-                  Ícono siempre visible, NO condicionado a hover: el proyecto
-                  ya pisó ese bug una vez con el botón de copiar del chat
-                  (static/js/chat.js) — `group-hover:` de Tailwind se envuelve
-                  en `@media (hover: hover)`, que en touch (sin mouse) nunca
-                  matchea y deja el botón oculto para siempre.
-                {% endcomment %}
-                <button
-                  type="button"
-                  @click="deleteConversation()"
-                  class="mr-1 shrink-0 rounded p-1 text-muted-foreground hover:text-destructive"
-                  aria-label="Borrar conversación «{{ conv.title|default:'Sin título' }}»"
-                  title="Borrar conversación"
-                >
-                  <span aria-hidden="true">🗑</span>
-                </button>
-              </div>
-            {% endfor %}
-          </div>
-        {% endfor %}
+      {% comment %}
+        Búsqueda en el historial (plan-v3.md, Fase 18) — htmx con debounce,
+        pega a chat:search y reemplaza el contenido de #sidebar-list. El
+        evento "search" (disparado por el botón "x" nativo de
+        type="search" al vaciar el campo) hace que volver a la lista
+        normal sea instantáneo, sin esperar los 300ms del debounce.
+        `current` viaja como hidden input (hx-include) — es el id de la
+        conversación abierta ahora mismo, para el resaltado del ítem activo
+        en _sidebar_conversations.html (no se puede usar `conversation.id`
+        directo ahí porque ese partial también se renderiza vía htmx, fuera
+        del contexto de conversation.html).
+      {% endcomment %}
+      <div class="px-2 pb-2">
+        <input
+          type="search"
+          name="q"
+          placeholder="Buscar en conversaciones…"
+          autocomplete="off"
+          class="w-full rounded-md border border-input bg-transparent px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          hx-get="{% url 'chat:search' %}"
+          hx-trigger="input changed delay:300ms, search"
+          hx-target="#sidebar-list"
+          hx-swap="innerHTML"
+          hx-include="[name='current']"
+          aria-label="Buscar en conversaciones"
+        >
+        <input type="hidden" name="current" value="{{ conversation.id|default:'' }}">
+      </div>
+
+      <nav id="sidebar-list" class="mt-2 min-h-0 flex-1 space-y-3 overflow-y-auto px-2 pb-2">
+        {% include "partials/_sidebar_conversations.html" with active_conversation_id=conversation.id|stringformat:"s" %}
       </nav>
 
       <div class="border-t border-border p-2">

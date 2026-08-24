@@ -352,28 +352,51 @@ de prueba borrados de la cuenta real al terminar.
 sin abrir una por una.
 
 Tareas:
-- [ ] `chat/views.py`: vista nueva `search_conversations` — `Message.
+- [x] `chat/views.py`: vista nueva `search_conversations` — `Message.
       objects.filter(conversation__user=request.user,
-      content__icontains=q)`, agrupado por conversación. SQLite con
-      `icontains` alcanza para el volumen de uso personal actual (unas
-      pocas decenas de conversaciones); si en algún momento se vuelve
-      lento, migrar a FTS5 de SQLite es la mejora natural, no hace falta
-      adelantarla ahora.
-- [ ] UI: input de búsqueda arriba de la lista de conversaciones en el
-      sidebar (`base.html`) — probablemente vía htmx (`hx-get` con
-      debounce), mismo patrón liviano que ya usa el filtro de colecciones
-      en `/documentos/`.
-- [ ] Resultados: lista de conversaciones que matchearon, cada una con un
-      snippet corto del mensaje que hizo match (no todo el mensaje) y
-      link directo a esa conversación.
-- [ ] Sin resaltado del mensaji dentro de `conversation.html` al llegar
-      desde un resultado de búsqueda (`scrollIntoView` + highlight
-      temporal) — evaluar si vale la pena en esta fase o queda para
-      después, no es necesario para que la feature sea útil.
+      content__icontains=q)`, agrupado por conversación (un resultado por
+      conversación: el mensaje que matcheó más reciente). Excluye mensajes
+      de rol `tool` (mismo criterio de privacidad que
+      `export_conversation`/`shared_conversation`). SQLite con
+      `icontains` alcanza para el volumen de uso personal actual — FTS5
+      queda como mejora natural si algún día hace falta.
+- [x] UI: input de búsqueda arriba de la lista de conversaciones en el
+      sidebar (`base.html`) — htmx (`hx-get` con debounce de 300ms +
+      evento `search` nativo del input al vaciarlo con la "x", instantáneo
+      sin esperar el debounce). `q` vacío devuelve el mismo partial de la
+      lista normal (`partials/_sidebar_conversations.html`, extraído del
+      bloque que antes estaba inline en `base.html`) — "borrar la
+      búsqueda" revierte al estado de siempre sin lógica aparte en el
+      cliente.
+- [x] Resultados (`partials/_sidebar_search_results.html`): lista de
+      conversaciones que matchearon, cada una con un snippet corto
+      (`SEARCH_SNIPPET_RADIUS=60` caracteres de contexto a cada lado del
+      match) del mensaje que hizo match y link directo a esa conversación.
+- [x] Sin resaltado del mensaje dentro de `conversation.html` al llegar
+      desde un resultado de búsqueda — se dejó afuera de esta fase, tal
+      como preveía el plan.
+- [x] Gotcha encontrado en el camino (no estaba en el plan original): los
+      items de `_sidebar_conversations.html` tienen `x-data` (el botón de
+      borrar, Fase 8) — un swap de htmx reemplaza HTML "a mano"
+      (`innerHTML`), sin pasar por el ciclo de vida de Alpine, así que el
+      contenido repuesto tras volver de una búsqueda quedaba con esos
+      botones sin inicializar (mismo síntoma que el gotcha de orden de
+      carga de scripts ya documentado, causa distinta). Fix en
+      `sidebar.js`: listener global de `htmx:afterSwap` que llama
+      `Alpine.initTree()` sobre el nodo que acaba de entrar al DOM.
 
-**Criterio de aceptación**: busco una palabra que sé que mencioné en una
-conversación vieja (no la más reciente) y aparece en los resultados con
-un link que me lleva directo a ella.
+**Criterio de aceptación**: verificado contra el stack Docker real — dos
+conversaciones de prueba, una "vieja" (`updated_at` forzado a 20 días
+atrás) con un término distintivo, otra "reciente" sin relación. Buscar el
+término trae solo la conversación vieja, con un link que lleva directo a
+ella. Confirmado también: 0 resultados no rompe nada (mensaje claro sin
+resultados), 2+ resultados ordenan por `updated_at` descendente (más
+reciente primero), pluralización correcta ("1 resultado" vs "N
+resultados"), un mensaje de rol `tool` con el término buscado NO aparece
+en los resultados (privacidad), y volver a page completa (no fragmento)
+resalta correctamente la conversación activa vía el nuevo
+`active_conversation_id`. Datos de prueba borrados de la cuenta real al
+terminar.
 
 ---
 

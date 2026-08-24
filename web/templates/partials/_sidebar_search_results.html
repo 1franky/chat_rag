@@ -1,0 +1,30 @@
+{% comment %}
+  Resultados de búsqueda en el historial (plan-v3.md, Fase 18) — swap de
+  #sidebar-list vía htmx (chat:search). Solo lectura: sin botón de borrar
+  acá (a diferencia de _sidebar_conversations.html), esto es un resultado
+  de búsqueda, no la lista de administración de siempre.
+{% endcomment %}
+{% if results %}
+  <div>
+    <p class="px-3 pb-1 text-xs font-medium text-muted-foreground">
+      {{ results|length }} resultado{{ results|length|pluralize }} para «{{ query }}»
+    </p>
+    {% for result in results %}
+      <a
+        href="{% url 'chat:detail' result.conversation.id %}"
+        class="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
+      >
+        <p class="truncate font-medium" title="{{ result.conversation.title }}">
+          {{ result.conversation.title|default:"Sin título" }}
+        </p>
+        <p class="truncate text-xs text-muted-foreground" title="{{ result.snippet }}">
+          {{ result.snippet }}
+        </p>
+      </a>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="px-3 py-2 text-sm text-muted-foreground">
+    Sin resultados para «{{ query }}».
+  </p>
+{% endif %}
