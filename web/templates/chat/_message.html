@@ -12,7 +12,15 @@
 {% endcomment %}
 {% if message.role == "user" %}
   <div class="msg msg-user flex justify-end gap-2">
-    <div class="max-w-2xl whitespace-pre-wrap rounded-lg bg-primary px-4 py-2 text-primary-foreground">{{ message.content }}</div>
+    {% comment %}
+      `min-w-0 break-words` (plan-v4.md, Fase 27): sin `min-w-0` un
+      `<div>` flex item no encoge por debajo del ancho intrínseco de su
+      contenido (default `min-width: auto` de flexbox) — un mensaje con
+      una URL/hash larga sin espacios se salía del viewport en mobile
+      pese al `max-w-2xl` (que solo pone un techo, no fuerza a encoger).
+      `break-words` corta esa palabra larga en vez de desbordar.
+    {% endcomment %}
+    <div class="min-w-0 max-w-2xl break-words whitespace-pre-wrap rounded-lg bg-primary px-4 py-2 text-primary-foreground">{{ message.content }}</div>
     <div
       class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"
       aria-hidden="true"
@@ -28,7 +36,8 @@
     >
       {% icon "bot" size=14 %}
     </div>
-    <div class="markdown-body max-w-2xl rounded-lg bg-muted px-4 py-2{% if message.is_error %} border border-destructive{% endif %}">{{ message.content }}</div>
+    {% comment %} min-w-0/break-words: mismo motivo que la burbuja de usuario, ver el comentario ahí. {% endcomment %}
+    <div class="markdown-body min-w-0 max-w-2xl break-words rounded-lg bg-muted px-4 py-2{% if message.is_error %} border border-destructive{% endif %}">{{ message.content }}</div>
   </div>
 {% elif message.role == "tool" %}
   <div class="msg msg-tool flex justify-start">

@@ -159,6 +159,88 @@
   margin-top: 0.375rem;
 }
 
+/* Evitar el auto-zoom de Safari/iOS al enfocar un input (plan-v4.md,
+   Fase 27): cualquier `<input>`/`<textarea>`/`<select>` con font-size
+   computado MENOR a 16px dispara ese zoom automático — casi todos los
+   inputs de la app usan `text-sm` (14px: `INPUT_CLASSES` en
+   `apps/accounts/forms.py`, el textarea del composer, el buscador del
+   sidebar, el input de nueva colección, etc.). Se sube a 16px SOLO por
+   debajo de `sm` (640px, mismo breakpoint que ya usa Tailwind) — en
+   desktop no hay teclado virtual que dispare esto, se deja el tamaño de
+   siempre en vez de agrandar los inputs sin necesidad. Regla global en
+   vez de tocar cada input a mano: ninguno de los `text-sm` existentes
+   necesita seguir siendo 14px específicamente en mobile. */
+@media (max-width: 39.9975rem) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
+/* `interactive-widget=resizes-content` (meta viewport, `base.html` y las
+   3 páginas standalone que tienen inputs) le pide al browser que
+   redimensione el viewport de layout cuando aparece el teclado virtual
+   en vez de solo superponerlo (plan-v4.md, Fase 27) — sin esto, en
+   algunos navegadores el composer del chat (al final de un `flex
+   h-full flex-col`) puede quedar tapado por el teclado en vez de que el
+   layout se achique para dejarlo visible. Atributo aditivo del CSS
+   Viewport spec: un navegador que no lo reconoce lo ignora sin romper
+   nada, no hace falta feature-detect. */
+
+/* Feedback de click/press (plan-v4.md, Fase 27): `:hover` no existe en
+   touch, así que el único feedback que tenía hoy cualquier botón al
+   tocarlo era ninguno. Global sobre `<button>` (cubre la enorme mayoría
+   de los controles reales de la app: enviar, adjuntar, reintentar,
+   compartir, el menú "...", borrar/renombrar, toggles, etc. — no hace
+   falta tocar un solo template para eso). Para los pocos `<a>`/`<label>`
+   que se ven y actúan como botón (ítem de conversación del sidebar,
+   "Documentos", "Exportar" del menú "...", "Elegir archivos", tabs de
+   colecciones, "Volver al chat" de 404) se optó a mano con la clase
+   `.press` en cada template — a propósito NO un selector global sobre
+   `<a>`, que agarraría también los links dentro de una respuesta en
+   markdown (`.markdown-body a`), donde "apachurrar" el texto entero de
+   un link con un `transform: scale()` se ve raro. */
+button:not(:disabled),
+.press {
+  transition: transform 0.1s ease;
+}
+button:not(:disabled):active,
+.press:active {
+  transform: scale(0.97);
+}
+
+/* Mensajes nuevos del chat entran con un fade+slide sutil (plan-v4.md,
+   Fase 27) — SOLO los que llega a agregar `chat.js` en vivo durante un
+   turno (`.msg-enter`, puesto a mano ahí, ver appendBubble/addToolChip/
+   appendAttachmentChip), nunca los que ya vienen renderizados en el HTML
+   inicial (`_message.html` no la usa) — si el historial completo hiciera
+   fade-in junto al cargar la página se vería como un flash, no como una
+   entrada. */
+@keyframes msg-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.msg-enter {
+  animation: msg-enter 0.2s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button:not(:disabled):active,
+  .press:active {
+    transform: none;
+  }
+  .msg-enter {
+    animation: none;
+  }
+}
+
 /* View Transitions API nativa entre navegaciones same-origin (MPA: cada
    click es un document load normal, no hay router cliente) — el browser
    hace un cross-fade solo, sin JS. Soportado en navegadores Chromium; en

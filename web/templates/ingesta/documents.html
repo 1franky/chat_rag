@@ -16,13 +16,13 @@
   <div class="mb-4 flex flex-wrap items-center gap-2 border-b border-border pb-3">
     <a
       href="{% url 'ingesta:list' %}"
-      class="rounded-md px-3 py-1.5 text-sm {% if not active_collection and not filter_none %}bg-accent text-accent-foreground{% else %}text-muted-foreground hover:bg-accent hover:text-accent-foreground{% endif %}"
+      class="press rounded-md px-3 py-1.5 text-sm {% if not active_collection and not filter_none %}bg-accent text-accent-foreground{% else %}text-muted-foreground hover:bg-accent hover:text-accent-foreground{% endif %}"
     >
       Todos
     </a>
     <a
       href="{% url 'ingesta:list' %}?coleccion=sin-coleccion"
-      class="rounded-md px-3 py-1.5 text-sm {% if filter_none %}bg-accent text-accent-foreground{% else %}text-muted-foreground hover:bg-accent hover:text-accent-foreground{% endif %}"
+      class="press rounded-md px-3 py-1.5 text-sm {% if filter_none %}bg-accent text-accent-foreground{% else %}text-muted-foreground hover:bg-accent hover:text-accent-foreground{% endif %}"
     >
       Sin colección
     </a>
@@ -30,7 +30,7 @@
       <div class="flex items-center rounded-md {% if active_collection.id == collection.id %}bg-accent text-accent-foreground{% endif %}">
         <a
           href="{% url 'ingesta:list' %}?coleccion={{ collection.id }}"
-          class="rounded-md py-1.5 pl-3 text-sm {% if active_collection.id != collection.id %}text-muted-foreground hover:bg-accent hover:text-accent-foreground{% endif %}"
+          class="press rounded-md py-1.5 pl-3 text-sm {% if active_collection.id != collection.id %}text-muted-foreground hover:bg-accent hover:text-accent-foreground{% endif %}"
         >
           {{ collection.name }}
         </a>
@@ -83,7 +83,7 @@
     </div>
     <p class="mb-3 text-muted-foreground">Arrastra archivos aquí, o</p>
     <label
-      class="cursor-pointer rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+      class="press cursor-pointer rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
     >
       Elegir archivos
       <input

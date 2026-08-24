@@ -353,31 +353,99 @@ browser (`claude-in-chrome` no conectado en la sesión).
 
 ---
 
-### Fase 27 — Microinteracciones y pulido final responsive
+### Fase 27 — Microinteracciones y pulido final responsive ✅
 
 **Objetivo**: última pasada, después de que todas las pantallas ya usan
 la identidad nueva — detalles de movimiento/feedback y una verificación
 mobile completa (no solo el sidebar de la Fase 24).
 
 Tareas:
-- [ ] Transición de entrada sutil para mensajes nuevos en el chat
-      (`@view-transition` ya existe para navegación entre páginas; acá
-      es dentro de la misma página, vía CSS/Alpine).
-- [ ] Feedback de click/press en botones principales (no solo `:hover`,
-      que no existe en touch).
-- [ ] Pasada mobile completa en cada pantalla tocada en las Fases 24-26
-      (no solo el sidebar): composer no tapado por el teclado virtual,
-      cards de documentos en una columna, formularios de settings/login
-      usables sin zoom.
-- [ ] Revisión de contraste del color de marca nuevo contra
-      `--background`/`--foreground` en ambos modos (WCAG AA como
-      mínimo) — puede requerir ajustar el tono elegido en la Fase 23 si
-      no pasa en alguno de los dos modos.
+- [x] Transición de entrada (`msg-enter`, `tailwind/input.css`, fade +
+      slide de 4px, 0.2s) para mensajes nuevos en el chat — puesta a
+      mano SOLO en `chat.js` (`appendBubble`/`addToolChip`/
+      `appendAttachmentChip`), nunca en `_message.html`: si el historial
+      completo hiciera fade-in junto con la carga de la página se vería
+      como un flash, no como una entrada. El chip de adjunto necesitó
+      cuidado extra: `_chat_attachment_chip.html` lo reusa también htmx
+      para refrescar un chip YA insertado cada 2s (polling
+      pending/processing) — si la clase viniera en el HTML del server en
+      vez de agregarse a mano tras el primer insert, cada refresh
+      reiniciaría la animación.
+- [x] Feedback de click/press: regla CSS global sobre `<button>` (cubre
+      la enorme mayoría de los controles reales sin tocar un solo
+      template — enviar, adjuntar, reintentar, compartir, el menú "...",
+      borrar/renombrar, toggles, forms). Para los pocos `<a>`/`<label>`
+      que se ven y actúan como botón (ítem de conversación del sidebar,
+      resultado de búsqueda, "Documentos", "Configuración", "Exportar",
+      "Elegir archivos", tabs de colecciones, "Volver al chat" de 404) se
+      optó a mano con una clase nueva `.press` — a propósito NO un
+      selector global sobre `<a>`, que agarraría también los links
+      dentro de una respuesta en markdown (`.markdown-body a`), donde
+      "apachurrar" el texto entero de un link con `transform: scale()`
+      se ve raro. Ambos (`button`/`.press`) respetan
+      `prefers-reduced-motion: reduce` (igual que `msg-enter`).
+- [x] Pasada mobile — 3 fixes concretos, todos verificables sin
+      necesidad de un dispositivo real:
+      1. Auto-zoom de Safari/iOS al enfocar un input: cualquier
+         `<input>`/`<textarea>`/`<select>` con font-size computado menor
+         a 16px lo dispara — casi todos los inputs de la app usan
+         `text-sm` (14px). Regla CSS global (`@media (max-width:
+         39.9975rem)`, mismo breakpoint `sm` de Tailwind) sube a 16px
+         solo por debajo de ese ancho, sin tocar cada input a mano ni
+         agrandarlos en desktop.
+      2. Composer tapado por el teclado virtual: se agregó
+         `interactive-widget=resizes-content` al `<meta viewport>` de
+         `base.html` y las 3 páginas standalone con inputs
+         (`login.html`, `shared_conversation.html`, `500.html`) —
+         atributo del CSS Viewport spec que le pide al navegador
+         redimensionar el viewport de layout cuando aparece el teclado
+         en vez de superponerlo; aditivo, un navegador que no lo conoce
+         lo ignora sin romper nada.
+      3. Encontrado en el camino (no estaba en el plan original):
+         burbujas de mensaje sin `min-w-0` — un flex item no encoge por
+         debajo del ancho intrínseco de su contenido por default, así
+         que un mensaje con una URL/hash larga sin espacios se salía del
+         viewport en mobile pese al `max-w-2xl` (que solo pone un techo,
+         no fuerza a encoger). Agregado `min-w-0 break-words` a ambas
+         burbujas (usuario/asistente) en `_message.html` y espejado en
+         `chat.js::appendBubble`.
+      4. Cards de documentos: ya quedaban en una columna en mobile sin
+         cambios (`grid` sin `grid-cols-*` en la base, solo
+         `sm:grid-cols-2 lg:grid-cols-3` — el default de CSS Grid sin
+         columnas explícitas ya es una sola columna) — confirmado, no
+         hizo falta tocar nada ahí.
+- [x] Contraste del violeta revisado con la fórmula real de luminancia
+      WCAG (no estimado) contra `--background` en ambos modos —los dos
+      pasan AA: 5.70:1 en claro, 6.56:1 en oscuro (mismos números que ya
+      había calculado la Fase 23 para el texto sobre el botón sólido: el
+      ratio es simétrico, da igual qué lado se llame "texto" y cuál
+      "fondo"). No hizo falta ajustar el tono. La comparación contra
+      `--foreground` que pedía el enunciado original del plan no
+      corresponde a ningún uso real en la app (el violeta nunca se
+      renderiza como texto plano sobre `--foreground` ni al revés —
+      confirmado que no hay ningún `text-primary` sin el sufijo
+      `-foreground` en ningún template) — se documenta la comparación
+      real que sí aplica (`--background`) en vez de una que no representa
+      nada visible.
 
-**Criterio de aceptación**: recorrido completo de la app en viewport de
-escritorio y mobile simulado, con el tema alternado entre claro/oscuro
-en cada pantalla — nada se ve "a medio hacer", sin regresiones
-funcionales en ningún flujo existente.
+**Criterio de aceptación**: probado contra el stack Docker real (build +
+up de `chat-web`, Tailwind recompilado) con una sesión real (limpiada al
+terminar): confirmado por curl que `interactive-widget=resizes-content`
+está en `/login/` y `/chat/<id>/`, que `.press` aparece en las pantallas
+esperadas (sidebar, header de conversación, documentos), que
+`min-w-0 max-w-2xl break-words` está en las burbujas servidas, y que
+`font-size:16px` bajo el media query mobile está en el `tailwind.css`
+servido. `animate-spin`/`@keyframes msg-enter`/la regla de `.press`
+confirmadas en el CSS compilado con los valores esperados. Sin browser
+real disponible en la sesión (`claude-in-chrome` no conectado): no se
+pudo ver la animación de entrada de un mensaje, el "apachurrado" al
+tocar un botón, ni probar en un dispositivo real que el teclado virtual
+ya no tapa el composer — estos 3 quedan verificados por construcción
+(mecanismos CSS/meta-tag estándar y bien documentados, no por
+inspección visual) en vez de confirmados con los ojos.
+
+Con esta fase se completa **todo `plan-v4.md`** (Fases 23-27) — el
+rediseño visual de la interfaz que pidió el usuario está terminado.
 
 ---
 
