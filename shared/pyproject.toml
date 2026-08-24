@@ -11,6 +11,11 @@ dependencies = [
     "python-docx>=1.1",
     "python-pptx>=1.0",
     "openpyxl>=3.1",
+    # reports.py::write_pdf (plan-v3.md, Fase 21) — más simple que reportlab
+    # para el caso de uso (secciones de título + párrafos, sin layout
+    # elaborado); reportlab da más control si algún día hace falta algo más
+    # complejo.
+    "fpdf2>=2.7",
     "pandas>=2.2",
     "pytesseract>=0.3",
     "pillow>=10.4",
