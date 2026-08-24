@@ -16,7 +16,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from rag_shared import documents_db, vector_store
-from rag_shared.embeddings import embed_query, embed_query_sparse
+from rag_shared.embeddings import embed_query, embed_query_sparse, rerank
 from rag_shared.logging import configure_logging
 from rag_shared.models import Chunk, CollectionMeta, DocumentMeta
 
@@ -24,6 +24,17 @@ configure_logging(service="chat-rag-mcp")
 logger = structlog.get_logger()
 
 mcp = FastMCP("chat-rag")
+
+# Cuántos candidatos de más pedirle a la fusión RRF antes de rerankear y
+# cortar a `top_k` (plan-v3.md, Fase 17) — el cross-encoder puede promover
+# un chunk que la fusión RRF dejó afuera del top_k original, así que hace
+# falta margen. 2x, no el 4x de partida que sugería el plan: medido en este
+# host (2 CPUs, ARM64, sin GPU) la latencia del reranker escala con la
+# cantidad de candidatos — 4x (20 candidatos con top_k=5) tardaba ~19s,
+# inviable para un chat interactivo; 2x (10 candidatos) baja a ~5-6s,
+# aceptado como trade-off precisión/latencia. Ver el docstring de
+# `rag_search` para el detalle completo de la decisión.
+_RERANK_CANDIDATE_MULTIPLIER = 2
 
 
 @mcp.tool
@@ -36,6 +47,30 @@ async def rag_search(query: str, top_k: int = 5, collection: str | None = None) 
 
     Búsqueda híbrida (plan-v2.md, Fase 12): combina similitud vectorial con
     BM25 léxico, mejor para términos exactos (nombres propios, códigos).
+
+    Reranking (plan-v3.md, Fase 17): la fusión RRF de arriba compara
+    embeddings calculados por separado (query vs. chunk); un cross-encoder
+    reordena después mirando query+chunk juntos, más preciso. Se le pide a
+    `vector_store.search` `top_k * _RERANK_CANDIDATE_MULTIPLIER` candidatos
+    (mismo prefetch+RRF de siempre, sin cambios en vector_store.py — subir
+    el `top_k` que recibe ya alcanza), se rerankean acá (es esta capa la
+    que tiene el texto de la query a mano) y se corta a `top_k` recién al
+    final.
+
+    Costo de latencia (decisión de arquitectura, confirmada con el usuario
+    tras medir en este host — 2 CPUs físicas, ARM64, sin GPU): el modelo de
+    reranking (`rag_shared.embeddings.RERANK_MODEL`,
+    `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1` por default) corre sobre
+    CPU y su costo escala con la cantidad y longitud de los candidatos
+    (chunks reales de hasta 800 caracteres, `CHUNK_SIZE` de
+    `rag_shared/chunker.py`). Con top_k=5 (default) y
+    `_RERANK_CANDIDATE_MULTIPLIER=2` → 10 candidatos: ~5-6s extra por
+    búsqueda sobre el tiempo de fusión RRF solo (que es de milisegundos).
+    Se evaluó primero el único modelo de reranking multilingüe que trae
+    fastembed (`jinaai/jina-reranker-v2-base-multilingual`, cross-encoder
+    tipo BERT-base): con 20 candidatos (el 4x que sugería originalmente el
+    plan) tardaba ~19-70s reales, muy por encima de lo tolerable para un
+    turno de chat — de ahí el cambio de modelo y de multiplicador.
     """
     # embed_query/embed_query_sparse son CPU-bound (sentence-transformers /
     # fastembed) y bloqueantes: se corren en threads aparte para no trabar
@@ -52,7 +87,22 @@ async def rag_search(query: str, top_k: int = 5, collection: str | None = None) 
             logger.warning("rag_search_unknown_collection", collection=collection)
             return []
 
-    results = await vector_store.search(vector, sparse_vector, top_k=top_k, collection_id=collection_id)
+    candidate_k = top_k * _RERANK_CANDIDATE_MULTIPLIER
+    results = await vector_store.search(vector, sparse_vector, top_k=candidate_k, collection_id=collection_id)
+
+    if results:
+        # rerank() es CPU-bound (cross-encoder sentence-transformers/torch)
+        # y bloqueante — a thread aparte, mismo criterio que
+        # embed_query/embed_query_sparse arriba.
+        scores = await asyncio.to_thread(rerank, query, [chunk.text for chunk in results])
+        for chunk, score in zip(results, scores, strict=True):
+            # Pisa el score de fusión RRF (rango arbitrario, solo sirve para
+            # ordenar entre sí) con el del reranker — más informativo aguas
+            # abajo, y consistente con el orden final que se devuelve.
+            chunk.score = score
+        results.sort(key=lambda chunk: chunk.score, reverse=True)
+        results = results[:top_k]
+
     logger.info("rag_search", query=query, top_k=top_k, collection=collection, results=len(results))
     return results
 

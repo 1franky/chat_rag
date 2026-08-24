@@ -266,36 +266,82 @@ query+chunk juntos, más preciso que comparar embeddings por separado)
 antes de devolver los `top_k` finales a Claude.
 
 Tareas:
-- [ ] `fastembed` (ya es dependencia desde la Fase 12) trae también
-      reranking vía `fastembed.rerank.cross_encoder.TextCrossEncoder` —
-      revisar el catálogo de modelos vigente antes de fijar uno (mismo
-      cuidado que con los IDs de modelo de Claude en la Fase 13: estas
-      cosas cambian). Tiene que ser multilingüe/soportar español, ya que
-      los documentos indexados son en español.
-- [ ] `rag_shared/embeddings.py`: `get_reranker()` (mismo patrón lazy +
+- [x] Modelo de reranking: se evaluó primero `fastembed` (ya era
+      dependencia desde la Fase 12), que trae reranking vía
+      `fastembed.rerank.cross_encoder.TextCrossEncoder`. Su único modelo
+      marcado como multilingüe, `jinaai/jina-reranker-v2-base-
+      multilingual` (1.1GB), funcionaba bien en precisión pero **medido en
+      este host (2 CPUs físicas, ARM64, sin GPU) tardaba ~19-70s por
+      búsqueda real** (chunks de hasta 800 caracteres, `CHUNK_SIZE` de
+      `rag_shared/chunker.py`) — inviable para un chat interactivo, incluso
+      después de fijar el número de threads (ver más abajo). Se cambió a
+      `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1` vía
+      **sentence-transformers** (~470MB, mismo framework que ya usa el
+      embedding denso, entrenado en mMARCO — cubre español) y quedó en
+      ~5-6s para 10 candidatos. Decisión confirmada con el usuario
+      (pregunta explícita tras medir, con las 4 opciones evaluadas) antes
+      de implementarla.
+- [x] `rag_shared/embeddings.py`: `get_reranker()` (mismo patrón lazy +
       `lru_cache` que `get_model()`/`get_sparse_model()`) +
       `rerank(query: str, texts: list[str]) -> list[float]` (scores, un
-      float por texto, mismo orden de entrada).
-- [ ] `vector_store.search()`: pedir más candidatos que `top_k` al fusionar
-      (ej. `top_k * 4`, tunear con pruebas reales) vía el mismo
-      `prefetch`+RRF que ya existe, y en la capa de arriba (`rag_search`
-      en `rag-mcp/server.py`, que es quien tiene el texto de la query a
-      mano) rerankear esos candidatos y cortar a `top_k` recién ahí — el
-      reranker necesita el texto de la query, no solo el vector, así que
-      no encaja bien adentro de `vector_store.py` como las otras piezas.
-- [ ] Latencia: el reranker corre sobre CPU igual que los embeddings —
-      medir cuánto suma al tiempo de `rag_search` con `top_k * 4`
-      candidatos reales y ajustar el multiplicador si pega mucho al
-      turno completo.
-- [ ] `preload()` (`embeddings.py`) precarga también el modelo de
-      reranking en build-time, mismo mecanismo que los otros dos.
+      float por texto, mismo orden de entrada). `RERANK_THREADS` (default
+      1) fija `torch.set_num_threads` — **crítico** en este host: sin
+      fijarlo, torch arranca su pool según `os.cpu_count()` (ve las 2 CPUs
+      físicas del host, no la cuota de 1.0 CPU del cgroup del contenedor)
+      y esos threads de más quedan constantemente throttled — el mismo
+      request pasa de ~4s a ~70s solo por ese overhead de contención
+      (medido primero con el reranker de fastembed/onnxruntime, mismo
+      principio aplica a torch).
+- [x] `vector_store.search()` sin cambios (no hizo falta): pedir más
+      candidatos que `top_k` al fusionar se logra pasándole a
+      `vector_store.search()` un `top_k` más alto desde `rag_search` — la
+      función no necesita saber que el resultado se va a rerankear
+      después.
+- [x] `rag-mcp/server.py::rag_search`: pide `top_k *
+      _RERANK_CANDIDATE_MULTIPLIER` candidatos, rerankea (tiene el texto
+      de la query a mano) y corta a `top_k` recién al final. Multiplicador
+      final: **2** (10 candidatos con el `top_k=5` default), no el 4 (20
+      candidatos) que sugería el plan original — con 4x medía ~19s incluso
+      con el modelo chico, muy por encima de lo tolerable.
+- [x] Latencia: medida exhaustivamente contra el stack real (ver arriba) —
+      determinó tanto el cambio de modelo como el multiplicador final.
+- [x] `preload()` (`embeddings.py`) precarga también el modelo de
+      reranking en build-time. `rag-mcp/entrypoint.sh` tuvo que ajustarse
+      también: el semillado del volumen `models-cache` desde el seed de
+      build-time solo corría si el volumen estaba completamente vacío —
+      en un deploy que ya tenía el denso/sparse de fases anteriores, el
+      reranker nuevo se hubiera quedado sin semillar (se habría bajado
+      igual en el primer uso real). Cambiado a `cp -an` (merge, no
+      clobber) sin la condición de "vacío".
+- [x] `compose.yaml`: límite de memoria de `chat-rag-mcp` subido de 1.5G a
+      2.5G (medido: los tres modelos cargados en un turno real de chat
+      ocupan ~1.2-1.3GB en este host, 2.5G deja margen sin sobre-reservar
+      en un host compartido con otros proyectos).
 
-**Criterio de aceptación**: una query ambigua semánticamente (un término
-que aparece en varios chunks pero solo uno responde realmente la
-pregunta) — comparar el orden final antes/después de este cambio y
-confirmar que el chunk correcto sube a la primera posición cuando antes
-no estaba ahí. Documentar el ejemplo concreto usado, igual que se hizo
-con "ZJ" en la Fase 12.
+**Decisión de arquitectura, confirmada con el usuario**: el plan original
+asumía que el reranker sumaría poco tiempo ("ajustar el multiplicador si
+pega mucho"). La realidad medida en este host (2 CPUs, ARM64, sin GPU,
+compartido con varios otros proyectos) fue mucho peor de lo esperado —
+ver el detalle en las tareas de arriba. Se le presentaron 4 opciones al
+usuario (modelo chico + pocos candidatos / aún menos candidatos / seguir
+con el modelo grande de fastembed / descartar el reranker) con la
+latencia real medida de cada una; eligió la primera.
+
+**Criterio de aceptación**: documentos de prueba subidos con un caso
+concreto de ambigüedad léxica (mismo criterio que "ZJ" en la Fase 12) —
+tres documentos cortos, dos "decoy" que repiten mucho el término literal
+de la query ("código de descuento") sin responderla realmente, uno que sí
+la responde pero con un sinónimo ("cupón") y menor densidad léxica.
+Query: *"¿Cómo aplico un código de descuento antes de pagar?"*. Antes del
+reranking (fusión RRF), el chunk correcto y uno de los decoy quedaban
+**empatados en el primer puesto** (mismo score RRF, 0.8333, orden entre
+ellos indefinido de una corrida a otra). Después del reranking, el chunk
+correcto queda claro y consistentemente en el puesto #1 (score 1.33 vs.
+-4.79 del decoy). Confirmado también end-to-end con un turno de chat real
+(no solo a nivel de `vector_store`/`rerank()`): Claude respondió citando
+primero el procedimiento correcto (aplicar el cupón en el checkout) y
+mencionó la lista de códigos del decoy como información secundaria. Datos
+de prueba borrados de la cuenta real al terminar.
 
 ---
 
