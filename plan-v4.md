@@ -136,33 +136,74 @@ el sprite completo (16 `<symbol>`) y el botón ☰ renderiza
 
 ---
 
-### Fase 24 — Sidebar y navegación
+### Fase 24 — Sidebar y navegación ✅
 
 **Objetivo**: aplicar la identidad nueva a la navegación, y resolver el
 comportamiento en mobile (hoy el sidebar empuja el contenido en vez de
 superponerse).
 
 Tareas:
-- [ ] Sidebar (`base.html`): logo/wordmark con algo de tratamiento (no
-      solo texto plano "chat_rag"), botón "Nueva conversación" e ícono de
-      Documentos con los íconos reales de la Fase 23, mejor separación
-      entre secciones (nueva conversación / buscar / lista / usuario).
-- [ ] Buscador (`_sidebar_conversations.html`/input de búsqueda): ícono
-      de lupa dentro del input, estado vacío de resultados con algo más
-      que texto plano.
-- [ ] Mobile (breakpoint a definir, probablemente `lg`): el sidebar pasa
-      de empujar contenido a un overlay con backdrop (Alpine ya maneja
-      `sidebarOpen`, se extiende con una media query / clase condicional
-      + cierre al click afuera y con Escape, mismo patrón que ya usa
-      `x-cloak` en otros lados).
-- [ ] `user_menu.html` y `theme_toggle.html`: revisar que los targets
-      táctiles tengan tamaño suficiente en mobile (mínimo ~44px).
+- [x] Sidebar (`base.html`): logo/wordmark con tratamiento (cuadrado
+      `bg-primary` de 24px con el ícono `message-square` + texto, en vez
+      de texto plano suelto), íconos reales (`plus`/`files`) en "Nueva
+      conversación"/"Documentos", separación entre secciones con un
+      `border-b` nuevo entre el bloque de acciones y el de
+      buscar+historial (ya había un `border-t` antes del usuario, quedan
+      3 zonas visualmente claras) y labels de grupo ("Hoy"/"Ayer"/...)
+      con tratamiento de eyebrow (uppercase + tracking, en vez de texto
+      plano chico).
+- [x] Buscador: ícono de lupa dentro del input (posicionado absoluto,
+      `pl-8` en el input para no superponerse), estado vacío de
+      resultados con el mismo ícono + más aire (`py-6`) en vez de una
+      sola línea de texto.
+- [x] Mobile: breakpoint `lg` (64rem/1024px, mismo que ya usaba el resto
+      del proyecto en otros lados). Por debajo de `lg` el sidebar pasa a
+      `fixed` + `-translate-x-full`/`translate-x-0` (desliza, no empuja)
+      con un backdrop (`bg-black/50`) que cierra al clickear; en `lg` y
+      para arriba sigue exactamente el comportamiento de siempre
+      (`w-64`/`w-0` empujando el contenido). Un listener de
+      `matchMedia('(min-width: 64rem)').addEventListener('change', ...)`
+      en `x-init` mantiene `isMobile` sincronizado si la ventana cruza el
+      breakpoint (no solo un check al cargar), y resetea `sidebarOpen` al
+      default de cada modo al cruzarlo (abierto en desktop, cerrado en
+      mobile) en vez de arrastrar el estado del modo anterior. Cierre con
+      `Escape` agregado (`@keydown.window.escape`, solo actúa si
+      `isMobile`) — Ctrl/Cmd+B siguen funcionando igual en ambos modos.
+      Verificado a nivel CSS que la cascada resuelve como se espera: la
+      regla base `.w-64` (sin variante) aparece ANTES del bloque
+      `@media (min-width:64rem)` en el `tailwind.css` compilado, así que
+      `lg:w-0`/`lg:w-64` (dentro de ese bloque) ganan en escritorio pese
+      a la regla base siempre presente — sin esto el ancho fijo que hace
+      falta en mobile (para que el drawer no dependa de la animación de
+      ancho) podría haber quedado peleando con el `lg:w-0` en escritorio.
+- [x] `user_menu.html` y `theme_toggle.html`: botones a `h-11 w-11` (44px,
+      Tailwind `11 * 0.25rem`) en vez de `p-1.5`/`p-2` alrededor de un
+      glifo chico. El botón "Salir" (texto, no ícono) pasó a `h-11` con
+      más padding horizontal por consistencia de altura en la fila,
+      aunque no sea un control solo-ícono. El botón de borrar por ítem de
+      conversación (`_sidebar_conversations.html`) quedó
+      deliberadamente MÁS CHICO que 44px (`p-1.5`, ícono `trash-2` de
+      14px) — es una acción secundaria embebida en una fila densa, no un
+      control autónomo; forzar 44px ahí hubiera roto la densidad de la
+      lista para una ganancia marginal.
 
-**Criterio de aceptación**: probado contra el stack Docker real en
-viewport de escritorio y en un viewport angosto simulado (devtools,
-~375px) — el sidebar en mobile se abre como overlay sin empujar el
-chat, cierra con click afuera/Escape, y todos los íconos/textos son
-legibles y clickeables en ambos tamaños.
+**Criterio de aceptación**: probado contra el stack Docker real (build +
+up de `chat-web`, Tailwind recompilado) con una sesión real (limpiada al
+terminar): `/chat/` sirve el sprite completo con los 2 íconos nuevos
+(`message-square`, `settings`) además de los de la Fase 23, el `<aside>`
+trae las clases `fixed`/`lg:static` y el toggle `translate-x-0 lg:w-64` /
+`-translate-x-full lg:w-0 lg:translate-x-0` esperado. `/chat/buscar/?q=`
+verificado con término sin resultados (estado vacío con ícono) y con
+término real (5 resultados, label de grupo en mayúsculas). `/documentos/`
+y `/settings/` siguen sirviendo 200 sin cambios de comportamiento. No se
+pudo probar el drag/click real del backdrop ni el breakpoint con un
+navegador de verdad en esta sesión (`claude-in-chrome` no estaba
+conectado) — la lógica de Alpine (`matchMedia`, `:class` con string
+ternario, `x-show`) reusa patrones ya validados en producción en este
+mismo archivo (el toggle `w-64`/`w-0` original, `$watch` de
+`theme_toggle.html`), y la cascada CSS que depende del orden
+base-antes-que-`@media` se confirmó leyendo el `tailwind.css` compilado
+directamente.
 
 ---
 

@@ -1,20 +1,25 @@
+{% load core_extras %}
 {% if request.user.is_authenticated %}
 <div class="flex items-center justify-between gap-1 text-sm">
-  <span class="truncate" title="{{ request.user.username }}">{{ request.user.username }}</span>
+  <span class="truncate pl-1" title="{{ request.user.username }}">{{ request.user.username }}</span>
   <div class="flex shrink-0 items-center gap-1">
+    {% comment %}
+      Botones a 44x44 (plan-v4.md, Fase 24) — antes p-1.5 alrededor de un
+      glifo chico quedaba por debajo del target táctil mínimo recomendado.
+    {% endcomment %}
     <a
       href="{% url 'accounts:settings' %}"
-      class="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+      class="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground"
       aria-label="Configuración"
       title="Configuración"
     >
-      ⚙
+      {% icon "settings" size=16 %}
     </a>
     <form method="post" action="{% url 'accounts:logout' %}">
       {% csrf_token %}
       <button
         type="submit"
-        class="rounded-md px-2 py-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+        class="h-11 rounded-md px-3 text-muted-foreground hover:bg-accent hover:text-accent-foreground"
       >
         Salir
       </button>

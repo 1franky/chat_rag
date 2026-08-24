@@ -4,9 +4,10 @@
   acá (a diferencia de _sidebar_conversations.html), esto es un resultado
   de búsqueda, no la lista de administración de siempre.
 {% endcomment %}
+{% load core_extras %}
 {% if results %}
   <div>
-    <p class="px-3 pb-1 text-xs font-medium text-muted-foreground">
+    <p class="px-3 pb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
       {{ results|length }} resultado{{ results|length|pluralize }} para «{{ query }}»
     </p>
     {% for result in results %}
@@ -24,7 +25,8 @@
     {% endfor %}
   </div>
 {% else %}
-  <p class="px-3 py-2 text-sm text-muted-foreground">
-    Sin resultados para «{{ query }}».
-  </p>
+  <div class="flex flex-col items-center gap-2 px-3 py-6 text-center text-muted-foreground">
+    {% icon "search" size=18 %}
+    <p class="text-sm">Sin resultados para «{{ query }}».</p>
+  </div>
 {% endif %}
