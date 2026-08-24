@@ -19,7 +19,7 @@ from starlette.responses import JSONResponse
 from rag_shared import documents_db, reports, vector_store
 from rag_shared.embeddings import embed_query, embed_query_sparse, rerank
 from rag_shared.logging import configure_logging
-from rag_shared.models import Chunk, CollectionMeta, DocumentMeta, ReportSection
+from rag_shared.models import Chunk, CollectionMeta, DiagramEdge, DiagramNode, DocumentMeta, ReportSection
 
 configure_logging(service="chat-rag-mcp")
 logger = structlog.get_logger()
@@ -194,6 +194,41 @@ async def report_generate_document(
     path = await asyncio.to_thread(writer, title, sections)
     url = _report_url(path.name)
     logger.info("report_generated", format=format, filename=path.name, sections=len(sections))
+    return url
+
+
+@mcp.tool
+async def report_generate_diagram(
+    format: Literal["drawio", "png"], title: str, nodes: list[DiagramNode], edges: list[DiagramEdge]
+) -> str:
+    """Genera un diagrama descargable (nodos + relaciones) y devuelve la
+    URL pública para descargarlo (plan-v3.md, Fase 22).
+
+    `nodes`: cada uno con un `id` propio (referenciado por `edges`, no
+    tiene que ser visible) y un `label` (el texto que se ve). `edges`:
+    `source`/`target` son `id`s de `nodes`, `label` opcional (ej. el texto
+    sobre una flecha de un diagrama de flujo). Vos armás la estructura
+    (qué nodos hay y cómo se conectan) a partir de lo que leíste del
+    documento fuente — esta tool solo dibuja, no decide relaciones.
+
+    Elegí el formato según lo que pida el usuario: "drawio" es un archivo
+    XML editable (el usuario lo sigue ajustando a mano en
+    diagrams.net/draw.io después — el layout automático que le da esta
+    tool es básico a propósito, una grilla simple); "png" es una imagen ya
+    renderizada (vía Graphviz), lista para ver tal cual, sin editar.
+
+    Con "png", además del link, incluí la imagen inline en tu respuesta
+    con sintaxis markdown estándar (`![título](url)`) — el chat ya la
+    renderiza. Con "drawio" no hay inline posible (es XML, no una imagen):
+    dejá solo el link.
+    """
+    writer = {"drawio": reports.write_drawio, "png": reports.write_diagram_png}[format]
+    # CPU/IO-bound: write_drawio arma el XML en memoria antes de guardar;
+    # write_diagram_png corre el binario `dot` como subproceso — ninguno de
+    # los dos es async nativamente, a thread aparte como el resto.
+    path = await asyncio.to_thread(writer, title, nodes, edges)
+    url = _report_url(path.name)
+    logger.info("report_generated", format=format, filename=path.name, nodes=len(nodes), edges=len(edges))
     return url
 
 

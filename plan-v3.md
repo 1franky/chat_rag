@@ -24,6 +24,10 @@ de seguir con otra cosa; si en algún momento se sienten como su propio
 bloque, migrarlas a un `plan-v4.md` es tan simple como cortar y pegar,
 no hay dependencia dura hacia atrás con las Fases 14-19.
 
+**Estado (2026-08-24): Fases 20-22 (reportería) completas.** De las
+Fases 14-19, solo la 19 (Google Drive) sigue pendiente, bloqueada por
+credenciales OAuth que tiene que crear el usuario.
+
 **Decisión de arquitectura, común a las 3**: el agente hoy corre con
 `permission_mode="bypassPermissions"` y sin restringir `tools`
 (`chat/agent.py`), pero el propio comentario del código dice que la
@@ -587,31 +591,55 @@ tabla), `matplotlib` es más directo — evaluar si esta fase cubre ambos
 casos o si el chart de datos merece su propia sub-tarea más adelante.
 
 Tareas:
-- [ ] `rag_shared/reports.py`: `write_drawio` (XML a mano, sin
-      dependencia nueva).
-- [ ] `rag-mcp/Dockerfile`: instalar `graphviz` (apt) — medir cuánto
-      suma al tamaño/tiempo de build de esta imagen, que ya carga
-      sentence-transformers + fastembed + torch, antes de decidir si
-      vale la pena o conviene un servicio aparte para esto.
-- [ ] `rag_shared/reports.py`: `write_diagram_png` (arma el `.dot` desde
-      nodos/aristas, corre `dot -Tpng` vía `subprocess`).
-- [ ] (Opcional/evaluar si entra en esta fase) `write_chart_png` con
-      `matplotlib` para gráficos de barras/líneas/torta a partir de
-      datos tabulares — caso de uso distinto al de "diagrama de un
-      documento" (más cercano a la Fase 20, cruce de datos numéricos).
-- [ ] `rag-mcp/server.py`: tool `report_generate_diagram(format:
-      Literal["drawio","png"], nodes: list[{id, label}], edges:
-      list[{from, to, label}]) -> str`.
-- [ ] Con el link de descarga de un `.png`, evaluar si además conviene
-      que Claude lo referencie como imagen inline (`![diagrama](url)`,
-      markdown estándar) en vez de solo como link — depende de si el
-      renderer de markdown del chat (`static/js/chat.js`) ya soporta
-      `<img>` o hay que habilitarlo a propósito.
+- [x] `rag_shared/reports.py`: `write_drawio` (XML a mano con
+      `xml.etree.ElementTree`, sin dependencia nueva) — layout automático
+      en grilla simple (`DiagramNode`/`DiagramEdge` no traen posición,
+      solo `id`/`label`), a propósito: la gracia de un `.drawio` es que
+      el usuario lo termina de acomodar a mano en draw.io después, no
+      hace falta un layout elaborado del lado del servidor. Aristas que
+      referencian un `id` de nodo inexistente se ignoran (no rompen todo
+      el diagrama).
+- [x] `rag-mcp/Dockerfile`: `graphviz` instalado vía apt. Medido en este
+      host: +60MB sobre la imagen ya existente (2.85GB → 2.91GB) —
+      insignificante al lado de torch/sentence-transformers/fastembed,
+      no justificaba un servicio aparte.
+- [x] `rag_shared/reports.py`: `write_diagram_png` — arma el `.dot` desde
+      nodos/aristas (con un `_dot_escape` para labels con comillas, evita
+      romper la sintaxis del `.dot`) y corre `dot -Tpng` vía `subprocess`,
+      leyendo el `.dot` por stdin.
+- [x] `write_chart_png` (matplotlib, gráficos de barras/líneas/torta):
+      **deferido**, no entró en esta fase — es un caso de uso distinto
+      (cruce de datos numéricos, más cercano a la Fase 20/`report_generate_table`
+      que a "diagrama de relaciones de un documento", que es lo que pidió
+      el usuario explícitamente). Se retoma si en la práctica hace falta.
+- [x] `rag-mcp/server.py`: tool `report_generate_diagram(format:
+      Literal["drawio","png"], title: str, nodes: list[DiagramNode],
+      edges: list[DiagramEdge]) -> str`. `DiagramNode`/`DiagramEdge`
+      nuevos en `rag_shared/models.py` — campos `source`/`target` en vez
+      de `from`/`to` como los nombraba el plan original (`from` es
+      palabra reservada de Python, no se puede usar como nombre de campo
+      de un modelo sin lidiar con un alias).
+- [x] `SYSTEM_PROMPT`: con `png` (default), Claude incluye la imagen
+      inline con `![título](url)` — confirmado que el renderer de
+      markdown del chat (`marked.js`, sin configuración custom) ya
+      soporta `<img>` de forma nativa, no hizo falta tocar `chat.js` para
+      nada de esto. Con `drawio`, solo como link (no hay forma de
+      "inline" un XML).
 
-**Criterio de aceptación**: le pido "generá un diagrama de flujo de
-según el documento X" — el `.drawio` abre limpio en draw.io con los
-nodos/relaciones reales del documento, y/o el `.png` (Graphviz) se ve
-como un diagrama de flujo legible, no un placeholder ni nodos sueltos
-sin relación con el contenido real.
+**Criterio de aceptación**: verificado contra el stack Docker real — subí
+un documento de prueba (proceso de aprobación de crédito con dos puntos
+de decisión reales: historial crediticio bueno/dudoso, aprueba/rechaza el
+supervisor) y pedí "generá un diagrama de flujo según el documento X".
+Claude leyó el documento y generó un `.png` con `report_generate_diagram`,
+embebido inline en la respuesta — el diagrama (verificado visualmente)
+muestra el flujo real y completo del documento, con las dos ramas de
+decisión correctas, no nodos sueltos ni un placeholder. En el mismo hilo,
+pedí después la versión editable ("quiero poder editarlo yo después a
+mano") — Claude cambió correctamente a `drawio` (sin re-preguntar el
+contenido) y devolvió un link (no inline, como corresponde a un XML);
+verificado con `xml.etree.ElementTree` que el `.drawio` tiene los mismos
+10 nodos y 10 aristas, con el mismo contenido real, bien formado. Datos de
+prueba (documento, conversación, sesión, archivos generados) borrados al
+terminar.
 
 ---

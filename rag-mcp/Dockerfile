@@ -13,6 +13,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 COPY --from=ghcr.io/astral-sh/uv:0.5.11 /uv /uvx /usr/local/bin/
 
+# graphviz (binario `dot`) — rag_shared/reports.py::write_diagram_png
+# (plan-v3.md, Fase 22) lo llama vía subprocess en runtime, no solo en
+# build time, así que tiene que quedar en la imagen final (acá no hay
+# multi-stage como en web/Dockerfile para dejarlo solo en un target). Capa
+# temprana y estable (aparte de las dependencias de Python, que cambian
+# mucho más seguido) para aprovechar bien el cache de Docker.
+RUN apt-get update && apt-get install -y --no-install-recommends graphviz \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Instala dependencias primero (cache de capas): shared/ es dependencia local editable.
