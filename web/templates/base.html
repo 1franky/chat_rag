@@ -3,7 +3,7 @@
 <html lang="es" class="h-full">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
   <title>{% block title %}chat_rag{% endblock %}</title>
   {% comment %}
     CSRF_COOKIE_HTTPONLY=True (settings.py): JS no puede leer la cookie
@@ -122,7 +122,7 @@
         </form>
         <a
           href="{% url 'ingesta:list' %}"
-          class="flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
+          class="press flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
         >
           {% icon "files" size=16 %} Documentos
         </a>

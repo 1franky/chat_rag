@@ -13,7 +13,7 @@
     {% for result in results %}
       <a
         href="{% url 'chat:detail' result.conversation.id %}"
-        class="block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
+        class="press block rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
       >
         <p class="truncate font-medium" title="{{ result.conversation.title }}">
           {{ result.conversation.title|default:"Sin título" }}

@@ -139,7 +139,10 @@ function chatPage(conversationId, initialCanRetry) {
 
     appendBubble(role) {
       const wrapper = document.createElement('div');
-      wrapper.className = `msg msg-${role} flex ${role === 'user' ? 'justify-end' : 'justify-start'} gap-2`;
+      // `msg-enter` (plan-v4.md, Fase 27): fade+slide sutil, SOLO acá —
+      // un mensaje ya cargado desde el historial (_message.html) no la
+      // lleva, si no todo el hilo haría fade-in junto al abrir la página.
+      wrapper.className = `msg msg-${role} msg-enter flex ${role === 'user' ? 'justify-end' : 'justify-start'} gap-2`;
 
       const avatar = document.createElement('div');
       avatar.setAttribute('aria-hidden', 'true');
@@ -153,11 +156,15 @@ function chatPage(conversationId, initialCanRetry) {
         avatar.innerHTML = this.iconSvg('bot');
       }
 
+      // min-w-0/break-words (plan-v4.md, Fase 27): mismo motivo que
+      // _message.html — sin min-w-0 un flex item no encoge por debajo
+      // del ancho de su contenido, una URL larga sin espacios se salía
+      // del viewport en mobile pese al max-w-2xl.
       const bubble = document.createElement('div');
       bubble.className =
         role === 'user'
-          ? 'max-w-2xl whitespace-pre-wrap rounded-lg bg-primary px-4 py-2 text-primary-foreground'
-          : 'markdown-body max-w-2xl whitespace-pre-wrap rounded-lg bg-muted px-4 py-2';
+          ? 'min-w-0 max-w-2xl break-words whitespace-pre-wrap rounded-lg bg-primary px-4 py-2 text-primary-foreground'
+          : 'markdown-body min-w-0 max-w-2xl break-words whitespace-pre-wrap rounded-lg bg-muted px-4 py-2';
       if (role === 'assistant') {
         // Skeleton loader ("pensando…") mientras se espera el primer token
         // del stream (plan.md, Fase 5) — `send()` lo saca en cuanto llega
@@ -186,7 +193,7 @@ function chatPage(conversationId, initialCanRetry) {
 
     addToolChip(data) {
       const wrapper = document.createElement('div');
-      wrapper.className = 'msg msg-tool flex justify-start';
+      wrapper.className = 'msg msg-tool msg-enter flex justify-start';
       wrapper.dataset.toolUseId = data.id;
       const details = document.createElement('details');
       details.className = 'max-w-2xl rounded-md border border-border px-3 py-2 text-sm';
@@ -258,6 +265,13 @@ function chatPage(conversationId, initialCanRetry) {
       wrapper.innerHTML = html.trim();
       const chip = wrapper.firstElementChild;
       if (!chip) return;
+      // `msg-enter` (plan-v4.md, Fase 27) puesta a mano acá, NO en
+      // `_chat_attachment_chip.html`: ese mismo template lo usa también
+      // htmx para refrescar un chip YA insertado cada 2s mientras está
+      // pending/processing (hx-swap="outerHTML") — si la clase viniera
+      // en el HTML del server, cada refresh de polling reiniciaría la
+      // animación de entrada, no solo la primera vez.
+      chip.classList.add('msg-enter');
       this.$refs.messageList.appendChild(chip);
       if (window.htmx) htmx.process(chip);
       this.scrollToBottom();
