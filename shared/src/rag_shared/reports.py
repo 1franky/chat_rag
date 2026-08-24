@@ -1,7 +1,7 @@
-"""Generación de archivos de reportería (plan-v3.md, Fases 20-21) —
-funciones que reciben datos ya estructurados (título + columnas + filas, o
-título + secciones, ya armados por Claude) y devuelven la ruta del
-archivo escrito en disco, bajo un nombre `<uuid4>.<ext>` bien
+"""Generación de archivos de reportería (plan-v3.md, Fases 20-22) —
+funciones que reciben datos ya estructurados (título + columnas + filas,
+título + secciones, o nodos + aristas, ya armados por Claude) y devuelven
+la ruta del archivo escrito en disco, bajo un nombre `<uuid4>.<ext>` bien
 determinístico (sin tracking en DB en este v1, ver la nota de
 arquitectura del plan — el nombre en sí es la única referencia al
 archivo).
@@ -15,12 +15,14 @@ from __future__ import annotations
 
 import csv
 import os
+import subprocess
 import uuid
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import openpyxl
 
-from rag_shared.models import ReportSection
+from rag_shared.models import DiagramEdge, DiagramNode, ReportSection
 
 # Coincide con el mount RW nuevo de chat-rag-mcp en compose.yaml
 # (`./data/media/reports:/data/media/reports`) — a diferencia del resto de
@@ -164,4 +166,139 @@ def write_pdf(title: str, sections: list[ReportSection]) -> Path:
             pdf.multi_cell(0, 6, _pdf_safe(prefix + text), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         pdf.ln(4)
     pdf.output(str(path))
+    return path
+
+
+# Layout en grilla simple para el .drawio (plan-v3.md, Fase 22) — Claude
+# solo manda nodos/aristas, no posiciones. Alcanza: la gracia de un .drawio
+# es justo que el usuario lo termina de acomodar a mano en draw.io después,
+# a diferencia del .png (Graphviz), que si necesita un layout automático
+# real porque no hay "después" — ver write_diagram_png.
+_DRAWIO_NODE_W = 160
+_DRAWIO_NODE_H = 60
+_DRAWIO_GAP = 40
+_DRAWIO_COLUMNS = 3
+
+
+def write_drawio(title: str, nodes: list[DiagramNode], edges: list[DiagramEdge]) -> Path:
+    """Diagrama editable (plan-v3.md, Fase 22) — XML `mxGraphModel` armado a
+    mano con `xml.etree.ElementTree` (stdlib, sin dependencia nueva). El
+    usuario lo abre en diagrams.net/draw.io para seguir editándolo; acá no
+    se rasteriza ninguna imagen."""
+    path = _report_path("drawio")
+
+    mxfile = ET.Element("mxfile", host="app.diagrams.net")
+    diagram = ET.SubElement(mxfile, "diagram", name=(title or DEFAULT_TITLE)[:100], id=str(uuid.uuid4()))
+    model = ET.SubElement(
+        diagram,
+        "mxGraphModel",
+        dx="800",
+        dy="600",
+        grid="1",
+        gridSize="10",
+        guides="1",
+        tooltips="1",
+        connect="1",
+        arrows="1",
+        fold="1",
+        page="1",
+        pageScale="1",
+        pageWidth="850",
+        pageHeight="1100",
+        math="0",
+        shadow="0",
+    )
+    root = ET.SubElement(model, "root")
+    # id "0" y "1" son las dos celdas base que exige el formato drawio (la
+    # capa raíz y la primera capa de dibujo) — todo lo demás cuelga de "1".
+    ET.SubElement(root, "mxCell", id="0")
+    ET.SubElement(root, "mxCell", id="1", parent="0")
+
+    cell_id_by_node_id: dict[str, str] = {}
+    for i, node in enumerate(nodes):
+        cell_id = f"node-{i}"
+        cell_id_by_node_id[node.id] = cell_id
+        col, row = i % _DRAWIO_COLUMNS, i // _DRAWIO_COLUMNS
+        x = _DRAWIO_GAP + col * (_DRAWIO_NODE_W + _DRAWIO_GAP)
+        y = _DRAWIO_GAP + row * (_DRAWIO_NODE_H + _DRAWIO_GAP)
+        cell = ET.SubElement(
+            root,
+            "mxCell",
+            id=cell_id,
+            value=node.label,
+            style="rounded=1;whiteSpace=wrap;html=1;",
+            vertex="1",
+            parent="1",
+        )
+        ET.SubElement(
+            cell, "mxGeometry", x=str(x), y=str(y), width=str(_DRAWIO_NODE_W), height=str(_DRAWIO_NODE_H), **{"as": "geometry"}
+        )
+
+    for i, edge in enumerate(edges):
+        source_cell = cell_id_by_node_id.get(edge.source)
+        target_cell = cell_id_by_node_id.get(edge.target)
+        if source_cell is None or target_cell is None:
+            # Referencia a un id de nodo que no vino en `nodes` — se
+            # ignora esa arista puntual en vez de romper el diagrama
+            # entero (que Claude se haya confundido en un id no debería
+            # tirar toda la generación).
+            continue
+        cell = ET.SubElement(
+            root,
+            "mxCell",
+            id=f"edge-{i}",
+            value=edge.label,
+            style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;",
+            edge="1",
+            parent="1",
+            source=source_cell,
+            target=target_cell,
+        )
+        ET.SubElement(cell, "mxGeometry", relative="1", **{"as": "geometry"})
+
+    tree = ET.ElementTree(mxfile)
+    ET.indent(tree, space="  ")
+    tree.write(path, encoding="utf-8", xml_declaration=True)
+    return path
+
+
+def _dot_escape(text: str) -> str:
+    # Los labels de Graphviz van entre comillas dobles en el .dot — sin
+    # escapar, un label con una comilla suelta rompe la sintaxis del
+    # archivo (en el mejor caso falla `dot`, en el peor inyecta
+    # atributos/nodos que Claude no pidió).
+    return text.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def write_diagram_png(title: str, nodes: list[DiagramNode], edges: list[DiagramEdge]) -> Path:
+    """Diagrama rasterizado a PNG vía Graphviz (plan-v3.md, Fase 22) — a
+    diferencia de un enfoque tipo Mermaid/drawio-en-vivo (necesitan un
+    navegador headless, pesado para este host), Graphviz calcula el layout
+    y renderiza sin depender de un browser: `dot` lee el `.dot` armado acá
+    por stdin y escribe el PNG directo, vía `subprocess` (necesita el
+    binario `dot` instalado — apt `graphviz` en rag-mcp/Dockerfile)."""
+    lines = ["digraph G {", "  rankdir=LR;", '  node [shape=box, style="rounded,filled", fillcolor="#f5f5f5", fontname="Helvetica"];']
+    if title:
+        lines.append(f'  labelloc="t"; fontname="Helvetica"; label="{_dot_escape(title)}";')
+    for node in nodes:
+        lines.append(f'  "{_dot_escape(node.id)}" [label="{_dot_escape(node.label)}"];')
+    for edge in edges:
+        label_attr = f' [label="{_dot_escape(edge.label)}"]' if edge.label else ""
+        lines.append(f'  "{_dot_escape(edge.source)}" -> "{_dot_escape(edge.target)}"{label_attr};')
+    lines.append("}")
+    dot_source = "\n".join(lines)
+
+    path = _report_path("png")
+    result = subprocess.run(
+        ["dot", "-Tpng", "-o", str(path)],
+        input=dot_source,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    if result.returncode != 0:
+        # No debería pasar con un .dot armado por nosotros (no texto crudo
+        # de Claude sin escapar) — pero si pasa, mejor un error claro que
+        # un archivo PNG vacío/corrupto servido silenciosamente.
+        raise RuntimeError(f"graphviz (dot) falló generando el diagrama: {result.stderr.strip()}")
     return path

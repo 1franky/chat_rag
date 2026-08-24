@@ -85,6 +85,29 @@ class ReportSection(BaseModel):
     body: str
 
 
+class DiagramNode(BaseModel):
+    """Un nodo de un diagrama (plan-v3.md, Fase 22) — `id` es la referencia
+    que usan los `DiagramEdge` para conectar nodos entre sí, `label` es el
+    texto visible."""
+
+    id: str
+    label: str
+
+
+class DiagramEdge(BaseModel):
+    """Una arista de un diagrama, entre dos `DiagramNode.id` — `label`
+    opcional (ej. el texto sobre la flecha en un diagrama de flujo).
+
+    `source`/`target`, no `from`/`to` como los nombraba el plan original:
+    `from` es palabra reservada de Python, no se puede usar como nombre de
+    campo de un modelo sin lidiar con un alias — más simple nombrarlos
+    distinto de entrada."""
+
+    source: str
+    target: str
+    label: str = ""
+
+
 class SearchResult(BaseModel):
     """Resultado de `rag_search`: los chunks más relevantes para una query."""
 
