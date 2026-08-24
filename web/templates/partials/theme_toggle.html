@@ -1,3 +1,4 @@
+{% load core_extras %}
 {% comment %}
   Toggle de tema (claro/oscuro), persistido en localStorage. Sin opción
   "sistema" (plan-v2.md, Fase 8): theme_init.html sigue usando matchMedia,
@@ -6,6 +7,9 @@
   guardado un valor explícito y matchMedia deja de consultarse.
   También editable desde /settings/ (mismo store de localStorage, ver
   accounts/settings.html) — este es el atajo rápido del header.
+
+  Botón a 44x44 (plan-v4.md, Fase 24): antes p-2 alrededor de un emoji de
+  ~16px quedaba bastante por debajo del target táctil mínimo recomendado.
 {% endcomment %}
 <div
   x-data="{ dark: document.documentElement.classList.contains('dark') }"
@@ -17,11 +21,11 @@
   <button
     type="button"
     @click="dark = !dark"
-    class="rounded-md p-2 text-sm hover:bg-accent hover:text-accent-foreground"
+    class="flex h-11 w-11 items-center justify-center rounded-md text-sm hover:bg-accent hover:text-accent-foreground"
     :aria-label="dark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'"
     :title="dark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'"
   >
-    <span x-show="dark" x-cloak aria-hidden="true">☀️</span>
-    <span x-show="!dark" x-cloak aria-hidden="true">🌙</span>
+    <span x-show="dark" x-cloak>{% icon "sun" size=18 %}</span>
+    <span x-show="!dark" x-cloak>{% icon "moon" size=18 %}</span>
   </button>
 </div>

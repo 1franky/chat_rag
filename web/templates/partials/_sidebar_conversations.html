@@ -1,3 +1,4 @@
+{% load core_extras %}
 {% comment %}
   Lista de conversaciones agrupada por fecha (plan.md, Fase 4) — extraído a
   partial en la Fase 18 (plan-v3.md) para poder devolver el mismo markup
@@ -12,7 +13,7 @@
 {% endcomment %}
 {% for group_label, conversations in sidebar_conversations.items %}
   <div>
-    <p class="px-3 pb-1 text-xs font-medium text-muted-foreground">{{ group_label }}</p>
+    <p class="px-3 pb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{{ group_label }}</p>
     {% for conv in conversations %}
       {% comment %}
         Wrapper en vez de un <a> suelto: un <a> no puede contener un
@@ -41,11 +42,11 @@
         <button
           type="button"
           @click="deleteConversation()"
-          class="mr-1 shrink-0 rounded p-1 text-muted-foreground hover:text-destructive"
+          class="mr-1 shrink-0 rounded p-1.5 text-muted-foreground hover:text-destructive"
           aria-label="Borrar conversación «{{ conv.title|default:'Sin título' }}»"
           title="Borrar conversación"
         >
-          <span aria-hidden="true">🗑</span>
+          {% icon "trash-2" size=14 %}
         </button>
       </div>
     {% endfor %}

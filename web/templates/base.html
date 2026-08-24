@@ -47,26 +47,62 @@
     (<use href="#icon-nombre">), sin pagar una request HTTP por ícono.
   {% endcomment %}
   {% include "partials/icon_sprite.html" %}
+  {% comment %}
+    Sidebar responsive (plan-v4.md, Fase 24): en desktop (>=lg) sigue
+    empujando el contenido con la animación de ancho de siempre (w-64/
+    w-0). Debajo de `lg` pasa a un overlay `fixed` con backdrop — nunca
+    tuvo breakpoint antes, así que en mobile el sidebar abierto empujaba
+    el chat a un espacio angosto en vez de superponerse. `isMobile` se
+    mantiene en un listener de `matchMedia` (no solo un check al cargar)
+    para que rotar el dispositivo o redimensionar la ventana no deje el
+    estado inconsistente; cruzar el breakpoint resetea `sidebarOpen` al
+    default de ese modo (abierto en desktop, cerrado en mobile) en vez de
+    arrastrar el estado del modo anterior.
+  {% endcomment %}
   <div
     class="flex h-full"
-    x-data="{ sidebarOpen: true }"
+    x-data="{
+      isMobile: !window.matchMedia('(min-width: 64rem)').matches,
+      sidebarOpen: window.matchMedia('(min-width: 64rem)').matches,
+    }"
+    x-init="
+      window.matchMedia('(min-width: 64rem)').addEventListener('change', (e) => {
+        isMobile = !e.matches;
+        sidebarOpen = e.matches;
+      });
+    "
     @keydown.window.ctrl.b.prevent="sidebarOpen = !sidebarOpen"
     @keydown.window.meta.b.prevent="sidebarOpen = !sidebarOpen"
+    @keydown.window.escape="if (isMobile) sidebarOpen = false"
   >
-    <aside
-      class="flex min-h-0 flex-col overflow-hidden border-r border-border bg-sidebar transition-all duration-200"
-      :class="sidebarOpen ? 'w-64' : 'w-0'"
-    >
-      <div class="p-4 font-semibold whitespace-nowrap">chat_rag</div>
+    <div
+      x-show="sidebarOpen && isMobile"
+      x-cloak
+      x-transition.opacity
+      @click="sidebarOpen = false"
+      class="fixed inset-0 z-30 bg-black/50"
+      aria-hidden="true"
+    ></div>
 
-      <div class="px-2">
+    <aside
+      class="fixed inset-y-0 left-0 z-40 flex min-h-0 w-64 flex-col overflow-hidden border-r border-border bg-sidebar transition-all duration-200 lg:static lg:z-auto"
+      :class="sidebarOpen ? 'translate-x-0 lg:w-64' : '-translate-x-full lg:w-0 lg:translate-x-0'"
+    >
+      <div class="flex items-center gap-2 p-4 font-semibold whitespace-nowrap">
+        <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+          {% icon "message-square" size=14 %}
+        </span>
+        chat_rag
+      </div>
+
+      <div class="border-b border-border px-2 pb-2">
         <form method="post" action="{% url 'chat:new' %}">
           {% csrf_token %}
           <button
             type="submit"
             class="mb-1 flex w-full items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
           >
-            <span>+</span> Nueva conversación
+            {% icon "plus" size=16 %} Nueva conversación
             <kbd class="ml-auto rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">⌘K</kbd>
           </button>
           {% comment %}
@@ -86,9 +122,9 @@
         </form>
         <a
           href="{% url 'ingesta:list' %}"
-          class="block whitespace-nowrap rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
+          class="flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
         >
-          Documentos
+          {% icon "files" size=16 %} Documentos
         </a>
       </div>
 
@@ -104,13 +140,16 @@
         directo ahí porque ese partial también se renderiza vía htmx, fuera
         del contexto de conversation.html).
       {% endcomment %}
-      <div class="px-2 pb-2">
+      <div class="relative px-2 pb-2">
+        <span class="pointer-events-none absolute top-1/2 left-4.5 -translate-y-1/2 text-muted-foreground">
+          {% icon "search" size=14 %}
+        </span>
         <input
           type="search"
           name="q"
           placeholder="Buscar en conversaciones…"
           autocomplete="off"
-          class="w-full rounded-md border border-input bg-transparent px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          class="w-full rounded-md border border-input bg-transparent py-1.5 pr-3 pl-8 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           hx-get="{% url 'chat:search' %}"
           hx-trigger="input changed delay:300ms, search"
           hx-target="#sidebar-list"
@@ -135,7 +174,7 @@
         <button
           type="button"
           @click="sidebarOpen = !sidebarOpen"
-          class="rounded-md p-2 hover:bg-accent hover:text-accent-foreground"
+          class="flex h-11 w-11 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground"
           aria-label="Mostrar/ocultar barra lateral (Ctrl/Cmd+B)"
           title="Mostrar/ocultar barra lateral (Ctrl/Cmd+B)"
         >
