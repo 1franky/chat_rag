@@ -68,6 +68,23 @@ class CollectionMeta(BaseModel):
     document_count: int = 0
 
 
+class ReportSection(BaseModel):
+    """Una sección de un documento de reportería (plan-v3.md, Fase 21) —
+    título + cuerpo ya redactado por Claude. `report_generate_document`
+    (rag-mcp/server.py) solo maqueta y exporta esto a docx/pptx/pdf, no
+    redacta contenido — Claude tuvo que leer el documento fuente (vía
+    rag_search/rag_get_document_chunks) y armar el resumen él mismo antes.
+
+    `body` admite líneas sueltas como párrafos normales, y líneas que
+    empiezan con "- " o "* " se renderizan como bullets (docx/pptx) —
+    mismo criterio simple en los tres formatos, sin pedirle a Claude una
+    estructura más rica en el input.
+    """
+
+    heading: str
+    body: str
+
+
 class SearchResult(BaseModel):
     """Resultado de `rag_search`: los chunks más relevantes para una query."""
 

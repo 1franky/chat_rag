@@ -511,30 +511,55 @@ reporte del documento X" como archivo entregable, no solo texto en el
 chat. Cubre Word, PowerPoint y PDF.
 
 Tareas:
-- [ ] `rag_shared/reports.py`: `write_docx` (`python-docx`, ya
+- [x] `rag_shared/reports.py`: `write_docx` (`python-docx`, ya
       dependencia — título + secuencia de secciones con
-      título/párrafos/bullets, sin diseño elaborado en v1) y `write_pptx`
-      (`python-pptx`, ya dependencia — una diapositiva por sección,
-      layout título+contenido).
-- [ ] `write_pdf`: acá sí hace falta una dependencia nueva —
-      `reportlab` o `fpdf2` (evaluar al implementar; `fpdf2` es más
-      simple para reportes de texto/tablas, `reportlab` da más control
-      de layout si hace falta algo más elaborado más adelante).
-- [ ] `rag-mcp/server.py`: tool `report_generate_document(format:
+      título/párrafos/bullets vía un helper `_body_lines` compartido con
+      `write_pptx`/`write_pdf` — líneas que empiezan con "- "/"* " se
+      renderizan como bullets, el resto como párrafos normales) y
+      `write_pptx` (`python-pptx`, ya dependencia — portada + una
+      diapositiva por sección, `slide_layouts[1]` — el índice del
+      placeholder de contenido, 1, se confirmó probándolo, no se asumió:
+      varía entre plantillas).
+- [x] `write_pdf`: se eligió `fpdf2` (dependencia nueva) sobre `reportlab`
+      — más simple para el caso de uso. **Gotcha real encontrado
+      probándolo** (no estaba en el plan): las fuentes core de fpdf2
+      (Helvetica) solo soportan latin-1 estricto, NO cp1252/WinAnsi pese a
+      ser lo esperable en un PDF — cualquier raya larga "—" o comilla
+      tipográfica "“"/"”" (muy comunes en la prosa que arma Claude) tira
+      `FPDFUnicodeEncodingException` y aborta toda la generación.
+      Resuelto con un sanitizador (`_pdf_safe`) que mapea la puntuación
+      "inteligente" común a su equivalente ASCII antes de pasarle nada a
+      fpdf2, con `errors="replace"` como red de seguridad final. Segundo
+      gotcha: `multi_cell()` no vuelve al margen izquierdo por default en
+      esta versión de fpdf2 (`new_x` default es `XPos.RIGHT`) — sin pasar
+      `new_x=XPos.LMARGIN, new_y=YPos.NEXT` explícito en cada llamada, la
+      segunda tira `FPDFException: Not enough horizontal space`.
+- [x] `rag-mcp/server.py`: tool `report_generate_document(format:
       Literal["docx","pptx","pdf"], title: str, sections:
-      list[{heading: str, body: str}]) -> str` — mismo shape de retorno
-      (URL) que `report_generate_table`. El input son secciones ya
-      redactadas por Claude (leyó el documento fuente vía `rag_search`/
-      `rag_get_document_chunks` y armó el resumen/contenido él mismo),
-      la tool solo maqueta y exporta.
-- [ ] `SYSTEM_PROMPT`: instrucción de cuándo elegir cada formato si el
-      usuario no lo especifica (ej. pptx para algo tipo presentación,
-      docx para un informe/resumen largo, pdf cuando pide explícitamente
-      "PDF" o algo para imprimir/archivar).
+      list[ReportSection]) -> str` — `ReportSection` (`heading`+`body`)
+      nuevo en `rag_shared/models.py`, mismo patrón que `Chunk`/
+      `DocumentMeta`. Mismo shape de retorno (URL) que
+      `report_generate_table`, factorizado a un helper `_report_url()`
+      compartido entre las dos tools.
+- [x] `SYSTEM_PROMPT`: instrucción de cuándo elegir cada formato si el
+      usuario no lo especifica (pptx para presentación, docx para informe
+      largo, pdf cuando pide "PDF" explícito o algo para imprimir/
+      archivar).
 
-**Criterio de aceptación**: le pido "hazme un resumen ejecutivo del
-documento X en Word" (o PowerPoint, o PDF), y el archivo descargado
-tiene contenido real y coherente con ese documento, no un placeholder.
+**Criterio de aceptación**: verificado contra el stack Docker real — subí
+un documento de prueba (`.txt` con datos ficticios: nombre de proyecto,
+responsable, presupuesto, 3 riesgos concretos) y en el chat pedí "hazme
+un resumen ejecutivo del documento X en Word". Claude buscó el documento,
+leyó sus chunks completos, y generó el `.docx` con `report_generate_document`
+— descargado y verificado con `python-docx`: título, 3 secciones con
+heading real, bullets correctos, y **todos los datos ficticios exactos**
+del documento fuente (nombre del responsable, monto del presupuesto, los
+3 riesgos tal cual) — contenido real, no un placeholder. Los tres formatos
+(docx/pptx/pdf) probados también de forma aislada con acentos, ñ, raya
+larga y comillas tipográficas en el cuerpo — todos preservan el contenido
+correctamente (docx/pptx nativo, pdf vía el sanitizador). Datos de prueba
+(documento, conversación, sesión, archivos generados) borrados al
+terminar.
 
 ---
 

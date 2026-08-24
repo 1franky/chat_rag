@@ -19,7 +19,7 @@ from starlette.responses import JSONResponse
 from rag_shared import documents_db, reports, vector_store
 from rag_shared.embeddings import embed_query, embed_query_sparse, rerank
 from rag_shared.logging import configure_logging
-from rag_shared.models import Chunk, CollectionMeta, DocumentMeta
+from rag_shared.models import Chunk, CollectionMeta, DocumentMeta, ReportSection
 
 configure_logging(service="chat-rag-mcp")
 logger = structlog.get_logger()
@@ -162,9 +162,43 @@ async def report_generate_table(
     # antes de guardarlo) — a thread aparte, mismo criterio que el resto de
     # las funciones bloqueantes de este módulo.
     path = await asyncio.to_thread(writer, title, columns, rows)
-    url = f"{PUBLIC_BASE_URL}{REPORTS_URL_PATH}/{path.name}"
+    url = _report_url(path.name)
     logger.info("report_generated", format=format, filename=path.name, columns=len(columns), rows=len(rows))
     return url
+
+
+@mcp.tool
+async def report_generate_document(
+    format: Literal["docx", "pptx", "pdf"], title: str, sections: list[ReportSection]
+) -> str:
+    """Genera un documento descargable (Word/PowerPoint/PDF) a partir de
+    secciones ya redactadas (plan-v3.md, Fase 21) y devuelve la URL pública
+    para descargarlo.
+
+    El input son secciones (heading + body) YA REDACTADAS por vos — leíste
+    el documento fuente con rag_search/rag_get_document_chunks y armaste el
+    resumen/contenido vos mismo; esta tool solo maqueta y exporta, no
+    redacta nada. `body` admite líneas que empiezan con "- "/"* " como
+    bullets, el resto como párrafos normales.
+
+    Elegí el formato según lo que pida el usuario o el tipo de contenido si
+    no lo especifica: "pptx" para algo tipo presentación/diapositivas,
+    "docx" para un informe/resumen largo, "pdf" cuando pide explícitamente
+    "PDF" o algo para imprimir/archivar tal cual.
+    """
+    writer = {"docx": reports.write_docx, "pptx": reports.write_pptx, "pdf": reports.write_pdf}[format]
+    # CPU/IO-bound (python-docx/python-pptx arman el XML en memoria antes
+    # de guardar; fpdf2 arma el PDF completo antes de escribirlo) — a
+    # thread aparte, mismo criterio que el resto de las funciones
+    # bloqueantes de este módulo.
+    path = await asyncio.to_thread(writer, title, sections)
+    url = _report_url(path.name)
+    logger.info("report_generated", format=format, filename=path.name, sections=len(sections))
+    return url
+
+
+def _report_url(filename: str) -> str:
+    return f"{PUBLIC_BASE_URL}{REPORTS_URL_PATH}/{filename}"
 
 
 @mcp.custom_route("/health", methods=["GET"])
