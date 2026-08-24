@@ -19,16 +19,22 @@ if [ -n "$GOMP" ]; then
 fi
 export GLIBC_TUNABLES="glibc.rtld.optional_static_tls=2097152"
 
-# El modelo se precarga en build time en /opt/model-cache-seed y no
+# Los modelos se precargan en build time en /opt/model-cache-seed y no
 # directo en MODEL_CACHE_DIR: en runtime ahí se monta el volumen
 # models-cache (compartido con chat-worker), que la primera vez está
 # vacío y taparía lo precargado — se perdería el ahorro de la descarga.
-# Si el volumen todavía está vacío, se semilla con lo que ya bajamos.
+# `cp -an` (no-clobber) en vez de solo copiar cuando TARGET_DIR está
+# vacío: un deploy existente ya tiene el volumen poblado con modelos de
+# fases anteriores (denso/sparse) cuando se agrega uno nuevo (el reranker
+# de la Fase 17) — sin el merge, ese modelo nuevo quedaría sin semillar y
+# se bajaría igual en el primer uso real, perdiendo el punto de precargarlo
+# en build-time. Es barato repetirlo en cada arranque: para lo que ya
+# existe en destino es solo un stat por archivo, no una copia.
 SEED_DIR=/opt/model-cache-seed
 TARGET_DIR="${MODEL_CACHE_DIR:-/app/models}"
-if [ -d "$SEED_DIR" ] && [ -z "$(ls -A "$TARGET_DIR" 2>/dev/null)" ]; then
+if [ -d "$SEED_DIR" ]; then
     mkdir -p "$TARGET_DIR"
-    cp -a "$SEED_DIR"/. "$TARGET_DIR"/
+    cp -an "$SEED_DIR"/. "$TARGET_DIR"/
 fi
 
 # Se asegura de que la colección rag_documents exista antes de arrancar

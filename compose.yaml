@@ -71,8 +71,16 @@ services:
         # rag_search haciendo una embedding de verdad (Fase 3 lo probó en
         # contenedores sueltos, sin límite de memoria) — cargar el modelo
         # en memoria por primera vez lo hacía reiniciar en cada llamada
-        # real desde la Fase 4.
-        limits: { cpus: "1.0", memory: 1.5G }
+        # real desde la Fase 4. 1.5G alcanzaba para el modelo denso + el
+        # sparse (BM25, liviano) de la Fase 12. Fase 17 (reranking) sumó un
+        # tercer modelo — se evaluó primero un cross-encoder de fastembed
+        # de 1.1GB (ver el comentario de RERANK_MODEL más abajo) que ni con
+        # 6G de límite andaba a una velocidad utilizable; con el modelo más
+        # chico que se terminó usando (~470MB, sentence-transformers), los
+        # tres modelos cargados en un turno real de chat miden ~1.3GB en
+        # este host — 2.5G deja margen razonable sin sobre-reservar en un
+        # host compartido con otros proyectos.
+        limits: { cpus: "1.0", memory: 2.5G }
     env_file: .env
     environment:
       QDRANT_URL: http://chat-qdrant:6333
@@ -81,6 +89,18 @@ services:
       # Búsqueda híbrida (plan-v2.md, Fase 12) — debe coincidir con el
       # mismo valor en chat-worker, es el que se usó para indexar.
       SPARSE_EMBEDDING_MODEL: Qdrant/bm25
+      # Reranking (plan-v3.md, Fase 17) — solo lo usa rag_search acá, no
+      # hace falta que coincida con nada de chat-worker (no participa de
+      # la indexación, solo reordena candidatos ya buscados). Cross-encoder
+      # sentence-transformers, no fastembed/onnx — ver el comentario de
+      # RERANK_MODEL en rag_shared/embeddings.py para por qué se descartó
+      # el único modelo multilingüe que trae fastembed (demasiado lento en
+      # este host).
+      RERANK_MODEL: cross-encoder/mmarco-mMiniLMv2-L12-H384-v1
+      # threads=1: mismo motivo que en embeddings.py — tiene que matchear
+      # el límite de cpus de este contenedor (1.0) para que torch no
+      # oversubscriba threads que el cgroup termina throttleando.
+      RERANK_THREADS: "1"
       MODEL_CACHE_DIR: /app/models
       DJANGO_SQLITE_PATH: /data/sqlite/db.sqlite3
     volumes:
