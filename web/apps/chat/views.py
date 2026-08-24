@@ -402,3 +402,72 @@ def grouped_conversations(user) -> dict[str, list[Conversation]]:
             key = "Más antiguo"
         groups[key].append(conversation)
     return {label: groups[label] for label in ("Hoy", "Ayer", "Últimos 7 días", "Más antiguo") if groups[label]}
+
+
+# Radio de contexto alrededor del match, en caracteres (plan-v3.md, Fase 18)
+# — un snippet corto, no el mensaje completo.
+SEARCH_SNIPPET_RADIUS = 60
+
+
+def _search_snippet(text: str, q: str) -> str:
+    """Recorte de `text` centrado en la primera aparición de `q`
+    (case-insensitive) — con elipsis en los bordes si se cortó contenido."""
+    lower = text.lower()
+    idx = lower.find(q.lower())
+    if idx == -1:
+        # No debería pasar (viene de un icontains), pero por si el texto
+        # cambió entre el filtro y acá — mejor un recorte del principio que
+        # un IndexError.
+        idx = 0
+    start = max(0, idx - SEARCH_SNIPPET_RADIUS)
+    end = min(len(text), idx + len(q) + SEARCH_SNIPPET_RADIUS)
+    snippet = text[start:end].strip()
+    if start > 0:
+        snippet = "…" + snippet
+    if end < len(text):
+        snippet += "…"
+    return snippet
+
+
+@login_required
+@require_GET
+def search_conversations(request: HttpRequest) -> HttpResponse:
+    """Fragmento del sidebar para el input de búsqueda (plan-v3.md, Fase
+    18) — htmx hx-get con debounce, reemplaza #sidebar-list. `q` vacío
+    devuelve el mismo partial de la lista normal agrupada por fecha (así
+    "borrar la búsqueda" revierte al estado de siempre sin lógica aparte
+    en el cliente).
+
+    Excluye mensajes de rol tool del match (mismo criterio de privacidad
+    que `export_conversation`/`shared_conversation`: el contenido de un
+    tool_result puede traer fragmentos crudos de documentos propios).
+    """
+    q = (request.GET.get("q") or "").strip()
+    current = request.GET.get("current") or ""
+
+    if not q:
+        return render(
+            request,
+            "partials/_sidebar_conversations.html",
+            {"sidebar_conversations": grouped_conversations(request.user), "active_conversation_id": current},
+        )
+
+    matches = (
+        Message.objects.filter(conversation__user=request.user, content__icontains=q)
+        .exclude(role=Message.Role.TOOL)
+        .select_related("conversation")
+        .order_by("conversation_id", "-created_at")
+    )
+    # Un resultado por conversación: el mensaje que matcheó más reciente
+    # (matches ya viene ordenado por conversación + fecha descendente, así
+    # que el primero que se ve de cada conversation_id es ese).
+    seen_conversations: set = set()
+    results = []
+    for message in matches:
+        if message.conversation_id in seen_conversations:
+            continue
+        seen_conversations.add(message.conversation_id)
+        results.append({"conversation": message.conversation, "snippet": _search_snippet(message.content, q)})
+    results.sort(key=lambda r: r["conversation"].updated_at, reverse=True)
+
+    return render(request, "partials/_sidebar_search_results.html", {"query": q, "results": results})

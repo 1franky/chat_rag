@@ -1,0 +1,53 @@
+{% comment %}
+  Lista de conversaciones agrupada por fecha (plan.md, Fase 4) — extraído a
+  partial en la Fase 18 (plan-v3.md) para poder devolver el mismo markup
+  desde `chat:search` cuando el campo de búsqueda queda vacío (revertir a
+  la lista normal), sin duplicar este bloque.
+
+  `active_conversation_id`: id (string) de la conversación abierta, para el
+  resaltado — no se usa `conversation.id` directo porque este partial se
+  renderiza tanto en la carga normal de página (ahí sí hay `conversation`
+  en el contexto) como via htmx desde `chat:search` (ahí no, viaja como
+  parámetro `current` en el form de búsqueda, ver base.html).
+{% endcomment %}
+{% for group_label, conversations in sidebar_conversations.items %}
+  <div>
+    <p class="px-3 pb-1 text-xs font-medium text-muted-foreground">{{ group_label }}</p>
+    {% for conv in conversations %}
+      {% comment %}
+        Wrapper en vez de un <a> suelto: un <a> no puede contener un
+        <button> (HTML inválido), y desde acá se puede borrar la
+        conversación sin necesidad de abrirla primero (plan-v2.md,
+        Fase 8).
+      {% endcomment %}
+      <div
+        class="flex items-center rounded-md text-sm hover:bg-accent hover:text-accent-foreground {% if conv.id|stringformat:'s' == active_conversation_id %}bg-accent text-accent-foreground{% endif %}"
+        x-data="sidebarConversationItem('{{ conv.id }}', '{% url 'chat:delete' conv.id %}')"
+      >
+        <a
+          href="{% url 'chat:detail' conv.id %}"
+          class="block flex-1 truncate px-3 py-2"
+          title="{{ conv.title }}"
+        >
+          {{ conv.title|default:"Sin título" }}
+        </a>
+        {% comment %}
+          Ícono siempre visible, NO condicionado a hover: el proyecto
+          ya pisó ese bug una vez con el botón de copiar del chat
+          (static/js/chat.js) — `group-hover:` de Tailwind se envuelve
+          en `@media (hover: hover)`, que en touch (sin mouse) nunca
+          matchea y deja el botón oculto para siempre.
+        {% endcomment %}
+        <button
+          type="button"
+          @click="deleteConversation()"
+          class="mr-1 shrink-0 rounded p-1 text-muted-foreground hover:text-destructive"
+          aria-label="Borrar conversación «{{ conv.title|default:'Sin título' }}»"
+          title="Borrar conversación"
+        >
+          <span aria-hidden="true">🗑</span>
+        </button>
+      </div>
+    {% endfor %}
+  </div>
+{% endfor %}

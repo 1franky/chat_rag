@@ -1,3 +1,18 @@
+// htmx intercambia HTML "a mano" (innerHTML), no pasa por el ciclo de vida
+// de Alpine — un swap que trae `x-data` (como los items de
+// _sidebar_conversations.html al volver de una búsqueda, plan-v3.md Fase
+// 18) queda sin inicializar si no se le avisa a Alpine explícitamente.
+// htmx:afterSwap trae en el evento el nodo que acaba de entrar al DOM;
+// Alpine.initTree() lo escanea igual que hace en el arranque normal. Sin
+// esto, el botón de borrar de un item repuesto así no hace nada al
+// clickearlo (mismo síntoma que el gotcha de orden de carga de scripts ya
+// documentado, pero causa distinta).
+document.addEventListener('htmx:afterSwap', (event) => {
+  if (window.Alpine) {
+    Alpine.initTree(event.detail.target);
+  }
+});
+
 // Borrar una conversación desde el ícono del sidebar sin tener que abrirla
 // primero (plan-v2.md, Fase 8). Usa fetch en vez de un submit normal: si la
 // conversación borrada es OTRA distinta de la que se tiene abierta, no hace
