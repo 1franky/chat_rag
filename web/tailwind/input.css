@@ -136,6 +136,29 @@
   display: none !important;
 }
 
+/* Agrupamiento visual de mensajes del chat (plan-v4.md, Fase 25):
+   selector de hermano adyacente en vez de un `mb-4` fijo por mensaje —
+   dos mensajes seguidos del MISMO rol (ej. el usuario adjunta un archivo
+   y después escribe, o el asistente llama dos tools seguidas) quedan más
+   juntos entre sí que un cambio de rol, que se lee como un turno nuevo.
+   Sin estado en Python/Alpine: funciona igual para los mensajes ya
+   cargados desde la DB (`_message.html`, un `<div class="msg ...">` por
+   `{% include %}`) que para los que arma `chat.js` en vivo durante un
+   turno (mismas clases, ver el comentario en `_message.html`) — el
+   selector no le importa de dónde salió cada `<div>`, solo que sean
+   hermanos adyacentes en el DOM. */
+.msg {
+  margin-top: 1.25rem;
+}
+.msg:first-child {
+  margin-top: 0;
+}
+.msg-user + .msg-user,
+.msg-assistant + .msg-assistant,
+.msg-tool + .msg-tool {
+  margin-top: 0.375rem;
+}
+
 /* View Transitions API nativa entre navegaciones same-origin (MPA: cada
    click es un document load normal, no hay router cliente) — el browser
    hace un cross-fade solo, sin JS. Soportado en navegadores Chromium; en

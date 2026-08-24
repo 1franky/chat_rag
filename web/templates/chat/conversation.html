@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load static %}
+{% load static core_extras %}
 
 {% block title %}{{ conversation.title|default:"Nueva conversación" }} · chat_rag{% endblock %}
 
@@ -16,65 +16,115 @@
   x-init="init()"
   data-conversation-id="{{ conversation.id }}"
 >
-  <div class="flex items-center justify-between border-b border-border px-4 py-2">
-    <h1 class="flex min-w-0 items-center gap-2 text-sm font-medium">
-      <span class="truncate">{{ conversation.title|default:"Nueva conversación" }}</span>
-      {% comment %}
-        Modelo usado (plan-v2.md, Fase 13): solo texto, no interactivo — no
-        se puede cambiar después de creada la conversación (ver
-        chat/models.py::Conversation.model).
-      {% endcomment %}
-      <span
-        class="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground"
-        title="Modelo de esta conversación"
-      >{{ conversation.get_model_display }}</span>
-      {% comment %}
-        Costo acumulado del turno (plan-v3.md, Fase 14) — suma de
-        ResultMessage.total_cost_usd de cada turno, actualizado en
-        chat/views.py::stream_message. Solo texto, sin interacción, igual
-        que el badge de modelo. El sufijo "u" de `floatformat:"4u"` fuerza
-        el punto decimal (no la coma de LANGUAGE_CODE="es") — es un monto en
-        USD, no un número localizado. Los filtros `unlocalize`/el tag
-        `{% templatetag openblock %} localize off {% templatetag closeblock %}`
-        NO alcanzan acá: `floatformat` decide su propio localizado con este
-        sufijo, sin mirar el contexto de localización del template.
-      {% endcomment %}
-      <span
-        class="shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground"
-        title="Costo acumulado de esta conversación"
-      >${{ conversation.total_cost_usd|floatformat:"4u" }}</span>
-      {% if share_url %}
-        <span
-          class="shrink-0"
-          title="Esta conversación tiene un link para compartir activo"
-          aria-label="Link para compartir activo"
-        >🔗</span>
-      {% endif %}
-    </h1>
+  {% comment %}
+    Header rediseñado (plan-v4.md, Fase 25): antes 3 badges con borde
+    (modelo/costo/link) apretados junto al título en una sola línea, más
+    4 acciones como texto suelto — todo compitiendo por el mismo espacio.
+    Ahora el título queda solo en su línea, la metadata (modelo/costo/
+    compartido) baja a una segunda línea más liviana (sin cajas, separada
+    por "·", subordinada al título en vez de compitiendo con él) y las
+    acciones se dividen en una primaria siempre visible (Compartir/Copiar
+    link) + un menú "..." para las secundarias/destructivas (Exportar,
+    Revocar, Borrar) que no hacen falta a cada rato.
+  {% endcomment %}
+  <div class="flex items-center justify-between gap-3 border-b border-border px-4 py-2">
+    <div class="min-w-0">
+      <h1 class="truncate text-sm font-medium">{{ conversation.title|default:"Nueva conversación" }}</h1>
+      <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
+        {% comment %}
+          Modelo usado (plan-v2.md, Fase 13): solo texto, no interactivo —
+          no se puede cambiar después de creada la conversación (ver
+          chat/models.py::Conversation.model).
+        {% endcomment %}
+        <span title="Modelo de esta conversación">{{ conversation.get_model_display }}</span>
+        <span aria-hidden="true">·</span>
+        {% comment %}
+          Costo acumulado del turno (plan-v3.md, Fase 14) — suma de
+          ResultMessage.total_cost_usd de cada turno, actualizado en
+          chat/views.py::stream_message. El sufijo "u" de
+          `floatformat:"4u"` fuerza el punto decimal (no la coma de
+          LANGUAGE_CODE="es") — es un monto en USD, no un número
+          localizado. Los filtros `unlocalize`/el tag
+          `{% templatetag openblock %} localize off {% templatetag closeblock %}`
+          NO alcanzan acá: `floatformat` decide su propio localizado con
+          este sufijo, sin mirar el contexto de localización del template.
+        {% endcomment %}
+        <span title="Costo acumulado de esta conversación">${{ conversation.total_cost_usd|floatformat:"4u" }}</span>
+        {% if share_url %}
+          <span aria-hidden="true">·</span>
+          <span
+            class="inline-flex items-center gap-1"
+            title="Esta conversación tiene un link para compartir activo"
+          >
+            {% icon "share-2" size=12 %} Compartido
+          </span>
+        {% endif %}
+      </div>
+    </div>
     <div
-      class="flex shrink-0 items-center gap-3 text-xs text-muted-foreground"
+      class="flex shrink-0 items-center gap-1"
       x-data="shareWidget('{{ conversation.id }}', {% if share_url %}'{{ share_url|escapejs }}'{% else %}null{% endif %})"
     >
       {% comment %}
-        Compartir/Copiar link/Revocar (plan-v2.md, Fase 11): 3 controles en
-        vez de un solo toggle, para no perder la forma de volver a copiar
-        un link ya activo (mandárselo a alguien más) sin tener que
-        revocarlo primero.
+        Compartir/Copiar link (plan-v2.md, Fase 11): acción primaria,
+        siempre visible — "Revocar" se movió al menú "...", es una acción
+        rara y algo destructiva, no hace falta a cada rato como copiar el
+        link de nuevo.
       {% endcomment %}
-      <button type="button" @click="share()" x-show="!shareUrl" class="hover:text-foreground">Compartir</button>
-      <button type="button" @click="copyLink()" x-show="shareUrl" x-cloak class="hover:text-foreground">Copiar link</button>
-      <button type="button" @click="revoke()" x-show="shareUrl" x-cloak class="hover:text-destructive">Revocar</button>
-      <a href="{% url 'chat:export' conversation.id %}" class="hover:text-foreground">
-        Exportar
-      </a>
-      <form
-        method="post"
-        action="{% url 'chat:delete' conversation.id %}"
-        onsubmit="return confirm('¿Borrar esta conversación?');"
-      >
-        {% csrf_token %}
-        <button type="submit" class="hover:text-destructive">Borrar</button>
-      </form>
+      <button
+        type="button"
+        @click="share()"
+        x-show="!shareUrl"
+        class="flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-sm text-muted-foreground hover:border-ring hover:bg-accent hover:text-accent-foreground"
+      >{% icon "share-2" size=14 %} Compartir</button>
+      <button
+        type="button"
+        @click="copyLink()"
+        x-show="shareUrl"
+        x-cloak
+        class="flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-sm text-muted-foreground hover:border-ring hover:bg-accent hover:text-accent-foreground"
+      >{% icon "copy" size=14 %} Copiar link</button>
+
+      <div class="relative" x-data="{ open: false }" @click.outside="open = false" @keydown.escape="open = false">
+        <button
+          type="button"
+          @click="open = !open"
+          class="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+          aria-haspopup="true"
+          :aria-expanded="open"
+          aria-label="Más acciones"
+          title="Más acciones"
+        >{% icon "ellipsis" size=16 %}</button>
+        <div
+          x-show="open"
+          x-cloak
+          x-transition.origin.top.right
+          class="absolute right-0 z-10 mt-1 w-44 rounded-md border border-border bg-card py-1 text-sm shadow-lg"
+        >
+          <a
+            href="{% url 'chat:export' conversation.id %}"
+            class="flex items-center gap-2 px-3 py-2 hover:bg-accent hover:text-accent-foreground"
+          >{% icon "download" size=14 %} Exportar</a>
+          <button
+            type="button"
+            @click="revoke(); open = false"
+            x-show="shareUrl"
+            x-cloak
+            class="flex w-full items-center gap-2 px-3 py-2 text-left text-destructive hover:bg-accent"
+          >{% icon "unlink-2" size=14 %} Revocar link</button>
+          <form
+            method="post"
+            action="{% url 'chat:delete' conversation.id %}"
+            onsubmit="return confirm('¿Borrar esta conversación?');"
+          >
+            {% csrf_token %}
+            <button
+              type="submit"
+              class="flex w-full items-center gap-2 px-3 py-2 text-left text-destructive hover:bg-accent"
+            >{% icon "trash-2" size=14 %} Borrar</button>
+          </form>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -82,16 +132,20 @@
     {% for message in chat_messages %}
       {% include "chat/_message.html" %}
     {% empty %}
-      <div x-ref="emptyState" class="flex h-full flex-col items-center justify-center gap-4 text-center">
+      <div x-ref="emptyState" class="flex h-full flex-col items-center justify-center gap-5 text-center">
+        <div class="flex h-12 w-12 items-center justify-center rounded-full border border-border bg-background text-foreground">
+          {% icon "bot" size=22 %}
+        </div>
         <p class="text-sm text-muted-foreground">Escribe algo para empezar, o prueba con una de estas:</p>
         <div class="grid w-full max-w-lg grid-cols-1 gap-2 sm:grid-cols-2">
           {% for prompt in suggested_prompts %}
             <button
               type="button"
               @click="$refs.emptyState.remove(); draft = '{{ prompt|escapejs }}'; $nextTick(() => send())"
-              class="w-full rounded-md border border-border p-3 text-left text-sm text-muted-foreground hover:border-ring hover:bg-accent hover:text-accent-foreground"
+              class="flex w-full items-start gap-2 rounded-md border border-border p-3 text-left text-sm text-muted-foreground hover:border-ring hover:bg-accent hover:text-accent-foreground"
             >
-              {{ prompt }}
+              {% icon "message-square" size=14 cls="mt-0.5 shrink-0" %}
+              <span>{{ prompt }}</span>
             </button>
           {% endfor %}
         </div>
@@ -116,8 +170,8 @@
         type="button"
         @click="retry()"
         :disabled="sending"
-        class="rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:border-ring hover:bg-accent hover:text-accent-foreground"
-      >↻ Reintentar</button>
+        class="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:border-ring hover:bg-accent hover:text-accent-foreground"
+      >{% icon "rotate-ccw" size=14 %} Reintentar</button>
     </div>
     <form @submit.prevent="send()" class="flex items-end gap-2">
       {% comment %}
@@ -140,8 +194,8 @@
         @click="$refs.fileInput.click()"
         title="Adjuntar documento"
         aria-label="Adjuntar documento"
-        class="shrink-0 rounded-md border border-input px-3 py-2 text-sm text-muted-foreground hover:border-ring hover:bg-accent hover:text-accent-foreground"
-      >📎</button>
+        class="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-input text-muted-foreground hover:border-ring hover:bg-accent hover:text-accent-foreground"
+      >{% icon "paperclip" size=16 %}</button>
       <textarea
         x-ref="input"
         x-model="draft"
@@ -155,10 +209,21 @@
       <button
         type="submit"
         :disabled="sending || !draft.trim()"
-        class="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-40"
+        class="flex h-11 items-center gap-1.5 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-40"
       >
-        <span x-show="!sending">Enviar</span>
-        <span x-show="sending" x-cloak>…</span>
+        <span x-show="!sending" class="inline-flex items-center gap-1.5">{% icon "send" size=15 %} Enviar</span>
+        {% comment %}
+          Indicador de "enviando" (plan-v4.md, Fase 25) — antes un simple
+          "…" de texto. 3 puntos con la misma animación `.skeleton` que ya
+          usa la burbuja "pensando" del asistente (chat.js::appendBubble),
+          `bg-current` para que tomen el color del texto del botón
+          (text-primary-foreground) sin un color hardcodeado aparte.
+        {% endcomment %}
+        <span x-show="sending" x-cloak class="inline-flex items-center gap-1" aria-label="Enviando…">
+          <span class="skeleton h-1.5 w-1.5 rounded-full bg-current"></span>
+          <span class="skeleton h-1.5 w-1.5 rounded-full bg-current" style="animation-delay: 0.2s"></span>
+          <span class="skeleton h-1.5 w-1.5 rounded-full bg-current" style="animation-delay: 0.4s"></span>
+        </span>
       </button>
     </form>
   </div>

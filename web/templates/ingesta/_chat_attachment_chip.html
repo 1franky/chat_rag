@@ -1,4 +1,4 @@
-{% load ingesta_extras %}
+{% load ingesta_extras core_extras %}
 {% comment %}
   Chip de adjunto en el composer del chat (plan-v3.md, Fase 16) — versión
   liviana de _document_card.html, sin selector de colección ni botón de
@@ -6,10 +6,16 @@
   apps/ingesta/views.py::_document_fragment_template). Mismo mecanismo de
   polling htmx que la card completa: mientras esté pending/processing, se
   refresca solo cada 2s hasta terminar en indexed o failed.
+
+  `.msg msg-attachment` (plan-v4.md, Fase 25): mismo mecanismo de
+  espaciado que `chat/_message.html`, aunque acá no hay un
+  `.msg-attachment + .msg-attachment` — dos adjuntos seguidos simplemente
+  quedan con el espaciado default (no hace falta agruparlos más juntos,
+  cada uno es su propio evento).
 {% endcomment %}
 <div
   id="chat-attachment-{{ document.id }}"
-  class="mb-4 flex justify-start"
+  class="msg msg-attachment flex justify-start"
   {% if document.status == "pending" or document.status == "processing" %}
   hx-get="{% url 'ingesta:status' document.id %}?chip=1"
   hx-trigger="every 2s"
@@ -17,10 +23,13 @@
   {% endif %}
 >
   <div class="max-w-2xl rounded-md border border-border px-3 py-2 text-sm{% if document.status == "failed" %} border-destructive{% endif %}">
-    <span>📎 {{ document.filename }}</span>
-    <span class="rounded px-1.5 py-0.5 text-xs {{ document.status|status_badge_class }}">
-      {{ document.get_status_display }}
-    </span>
+    <div class="flex items-center gap-1.5">
+      {% icon "paperclip" size=14 %}
+      <span>{{ document.filename }}</span>
+      <span class="rounded px-1.5 py-0.5 text-xs {{ document.status|status_badge_class }}">
+        {{ document.get_status_display }}
+      </span>
+    </div>
     {% if document.status == "failed" and document.error_message %}
       <p class="mt-1 text-xs text-destructive">{{ document.error_message }}</p>
     {% endif %}

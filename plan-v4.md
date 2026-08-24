@@ -207,38 +207,83 @@ directamente.
 
 ---
 
-### Fase 25 — Chat: burbujas, header y composer
+### Fase 25 — Chat: burbujas, header y composer ✅
 
 **Objetivo**: es la pantalla que más se usa — aplicar la identidad
 nueva a mensajes, header de conversación y composer, resolviendo la
 jerarquía apretada que hay hoy.
 
 Tareas:
-- [ ] `_message.html`: distinción visual más clara entre roles (avatar o
-      ícono chico por rol en vez de depender solo de alineación +
-      color), más aire entre mensajes consecutivos del mismo rol vs. de
-      roles distintos, mensajes de `tool` con ícono/color propio en vez
-      del 🔧 emoji.
-- [ ] Header de `conversation.html`: agrupar acciones secundarias
-      (Exportar / Borrar / Revocar) en un menú "..." con íconos, dejar
-      "Compartir"/"Copiar link" como acción primaria visible; badges de
-      modelo/costo/link con tratamiento visual más liviano (evitar 3
-      pills apretadas compitiendo con el título).
-- [ ] Composer: botón de adjuntar y botón de enviar con íconos reales,
-      estado "pensando"/`sending` con un indicador más claro que "…"
-      (ej. 3 puntos animados, reusando `.skeleton` o una animación nueva
-      chica).
-- [ ] Chip de adjunto (`_chat_attachment_chip.html`) y botón de
-      reintentar (↻) actualizados al nuevo set de íconos.
-- [ ] Estado vacío (prompts sugeridos, tanto en `empty.html` como dentro
-      de `conversation.html`) con el tratamiento visual nuevo.
+- [x] `_message.html`: avatar circular por rol (`user`/`bot`, íconos
+      nuevos vendoreados) en vez de depender solo de alineación+color;
+      mensajes de `tool` con ícono `wrench` en vez del 🔧 emoji.
+      Agrupamiento de mensajes consecutivos del mismo rol vía CSS
+      (`.msg`/`.msg-<rol>` + selector de hermano adyacente en
+      `tailwind/input.css`, sin estado en Python/Alpine — ver el
+      comentario ahí) en vez de un `mb-4` fijo por mensaje: un cambio de
+      rol se lee como turno nuevo (más aire), varios mensajes seguidos
+      del mismo rol (ej. varias tool calls seguidas) quedan agrupados
+      (menos aire). `static/js/chat.js` (`appendBubble`/`addToolChip`)
+      arma el mismo markup a mano para lo que llega en vivo durante un
+      turno — mismas clases, mismos íconos (helper `iconSvg()` nuevo),
+      para que no se note la diferencia entre un mensaje recién llegado y
+      uno recargado desde el historial.
+- [x] Header de `conversation.html` reescrito: título solo en su línea,
+      metadata (modelo/costo/compartido) baja a una línea liviana sin
+      cajas (separada por "·"), "Compartir"/"Copiar link" quedan como
+      botón primario visible con ícono, "Exportar"/"Revocar
+      link"/"Borrar" se agruparon en un menú "..." (`x-data="{ open:
+      false }"` anidado dentro del `shareWidget` existente —
+      `@click.outside`/`Escape` cierran, confirmado que Alpine resuelve
+      `revoke()`/`shareUrl` del scope padre desde el hijo sin problema,
+      patrón estándar de Alpine).
+- [x] Composer: adjuntar (`paperclip`) y enviar (`send`) con íconos
+      reales, target táctil de adjuntar a 44px (mismo criterio de la
+      Fase 24). Indicador de "enviando" en el botón: 3 puntos con la
+      misma animación `.skeleton` que ya usaba la burbuja "pensando" del
+      asistente desde `plan.md` Fase 5 (`bg-current`, toma el color de
+      texto del botón) — la burbuja "pensando" en sí ya existía de antes
+      y no hizo falta tocarla, solo el "…" del botón de enviar.
+- [x] Chip de adjunto: ícono `paperclip` reemplaza 📎, gana la misma
+      clase `.msg msg-attachment` (espaciado consistente con el resto del
+      hilo). Botón de reintentar: ícono `rotate-ccw` reemplaza ↻.
+- [x] Estado vacío: `empty.html` y el estado vacío dentro de
+      `conversation.html` ganan un ícono `bot` en un círculo arriba del
+      copy, y cada prompt sugerido gana un ícono `message-square` (en
+      vez de ser solo texto plano en una caja).
+- [x] 3 íconos nuevos vendoreados (`user`, `bot`, `ellipsis`), sprite en
+      21 íconos total.
+- [x] Encontrado y corregido en el camino (no estaba en el plan
+      original): `chat/shared_conversation.html` (página pública
+      standalone, reusa `_message.html` tal cual) no incluía el sprite de
+      íconos — los avatares nuevos hubieran quedado como círculos vacíos
+      ahí (`<use>` sin `<symbol>` correspondiente, no tira error pero
+      tampoco se ve nada). Se agregó el `{% include
+      "partials/icon_sprite.html" %}` a esa página ahora (no se puede
+      dejar rota hasta la Fase 26) — el resto del tratamiento visual de
+      esa página sigue siendo tarea de esa fase.
 
-**Criterio de aceptación**: conversación real de prueba (mensajes de
-usuario/asistente/tool, un adjunto, un turno fallido con reintento)
-revisada visualmente en claro y oscuro — jerarquía clara de qué es
-mensaje vs. acción vs. metadata, sin regresión funcional (todo lo que
-andaba sigue andando: enviar, adjuntar, compartir, exportar, borrar,
-reintentar).
+**Criterio de aceptación**: probado contra el stack Docker real (build +
+up de `chat-web`, Tailwind recompilado) con una conversación real de la
+cuenta que ya tenía los 3 roles (usuario, varias tool calls seguidas,
+asistente) — confirmado por curl con una sesión real (limpiada al
+terminar): el HTML sirve las clases `msg`/`msg-<rol>` esperadas, los 3
+avatares (`icon-user`/`icon-bot`/`icon-wrench`), el header con el botón
+primario + menú "..." con sus 3 íconos, y el composer con
+`paperclip`/`send`. Probado también el estado vacío (conversación nueva
+sin mensajes, creada y borrada solo para la prueba) y la página pública
+compartida (link de prueba creado y revocado después) — confirmado que
+sirve el sprite completo tras el fix. Sin browser real disponible en la
+sesión (`claude-in-chrome` no conectado): no se pudo ver la animación de
+los 3 puntos, el hover/click del menú "..." en vivo, ni el agrupamiento
+de mensajes con los ojos — se verificó en cambio que el CSS del selector
+de hermano adyacente compila al valor esperado (`grep` directo sobre el
+`tailwind.css` compilado) y que `chat.js` (que no se puede ejecutar sin
+navegador) queda con paréntesis/llaves/corchetes balanceados y una
+revisión manual línea por línea contra el markup de `_message.html` que
+tiene que espejar. No se gastó una llamada real a la API para esta fase:
+ningún cambio tocó `chat/views.py`/`chat/agent.py`/el protocolo SSE, solo
+el markup/CSS/JS de presentación sobre un flujo que ya funcionaba.
 
 ---
 

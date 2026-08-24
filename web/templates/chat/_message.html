@@ -1,17 +1,40 @@
-{% load chat_extras %}
+{% load chat_extras core_extras %}
+{% comment %}
+  Clase `.msg`/`.msg-<rol>` (plan-v4.md, Fase 25, tailwind/input.css):
+  el espaciado entre mensajes lo resuelve un selector de hermano
+  adyacente en CSS (más aire en un cambio de rol, menos entre mensajes
+  consecutivos del mismo rol), no un `mb-4` fijo por mensaje — así que
+  estas clases son funcionales, no solo decorativas, no sacarlas.
+  `static/js/chat.js` arma el mismo markup a mano para los mensajes que
+  llegan en vivo durante un turno (appendBubble/addToolChip) — cualquier
+  cambio acá se replica ahí para que un mensaje recién llegado se vea
+  igual a uno cargado desde el historial.
+{% endcomment %}
 {% if message.role == "user" %}
-  <div class="mb-4 flex justify-end">
+  <div class="msg msg-user flex justify-end gap-2">
     <div class="max-w-2xl whitespace-pre-wrap rounded-lg bg-primary px-4 py-2 text-primary-foreground">{{ message.content }}</div>
+    <div
+      class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"
+      aria-hidden="true"
+    >
+      {% icon "user" size=14 %}
+    </div>
   </div>
 {% elif message.role == "assistant" %}
-  <div class="mb-4 flex justify-start">
+  <div class="msg msg-assistant flex justify-start gap-2">
+    <div
+      class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-background text-foreground"
+      aria-hidden="true"
+    >
+      {% icon "bot" size=14 %}
+    </div>
     <div class="markdown-body max-w-2xl rounded-lg bg-muted px-4 py-2{% if message.is_error %} border border-destructive{% endif %}">{{ message.content }}</div>
   </div>
 {% elif message.role == "tool" %}
-  <div class="mb-4 flex justify-start">
+  <div class="msg msg-tool flex justify-start">
     <details class="max-w-2xl rounded-md border border-border px-3 py-2 text-sm">
-      <summary class="cursor-pointer select-none text-muted-foreground">
-        🔧 {{ message.tool_name }}
+      <summary class="flex cursor-pointer items-center gap-1.5 select-none text-muted-foreground">
+        {% icon "wrench" size=14 %} {{ message.tool_name }}
         {% if message.is_error %}<span class="text-destructive">· error</span>{% endif %}
       </summary>
       {% if message.tool_args %}
